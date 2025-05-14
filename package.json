@@ -7,13 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prettier": "prettier --write ."
+    "prettier": "prettier --write .",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@prisma/client": "6.7.0",
     "next": "15.3.2"
   },
   "devDependencies": {
-    "typescript": "5.8.3",
     "@types/node": "22.15.17",
     "@types/react": "19.1.4",
     "@typescript-eslint/eslint-plugin": "8.32.0",
@@ -22,6 +25,8 @@
     "eslint-config-prettier": "10.1.5",
     "eslint-import-resolver-typescript": "4.3.4",
     "eslint-plugin-import": "2.31.0",
-    "prettier-plugin-organize-imports": "4.1.0"
+    "prettier-plugin-organize-imports": "4.1.0",
+    "prisma": "6.7.0",
+    "typescript": "5.8.3"
   }
 }

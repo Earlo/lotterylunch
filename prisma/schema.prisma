@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // used only by the Prisma CLI
+}
+
+enum Visibility {
+  open
+  invite_only
+}
+
+enum Role {
+  owner
+  admin
+  member
+}
+
+enum MembershipStatus {
+  pending
+  active
+  suspended
+}
+
+enum CalendarProvider {
+  google
+  outlook
+  apple
+  ics
+}
+
+enum SlotType {
+  coffee
+  lunch
+  afterwork
+}
+
+enum MatchState {
+  created
+  scheduled
+  cancelled
+}
+
+enum EventStatus {
+  tentative
+  confirmed
+  cancelled
+}
+
+model User {
+  id                  String               @id @default(uuid()) @db.Uuid
+  email               String               @unique
+  name                String?
+  timezone            String               @default("UTC")
+  photoUrl            String?
+  authProvider        String
+  memberships         Membership[]
+  calendarConnections CalendarConnection[]
+  availability        AvailabilitySlot[]
+  ownedGroups         Group[]              @relation("GroupOwner")
+  createdAt           DateTime             @default(now())
+}
+
+model Group {
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String
+  description       String?
+  visibility        Visibility         @default(open)
+  ownerId           String             @db.Uuid
+  owner             User               @relation("GroupOwner", fields: [ownerId], references: [id])
+  memberships       Membership[]
+  matches           Match[]
+  availabilitySlots AvailabilitySlot[]
+  createdAt         DateTime           @default(now())
+}
+
+model Membership {
+  id       String           @id @default(uuid()) @db.Uuid
+  userId   String           @db.Uuid
+  groupId  String           @db.Uuid
+  role     Role             @default(member)
+  status   MembershipStatus @default(active)
+  joinedAt DateTime         @default(now())
+  user     User             @relation(fields: [userId], references: [id])
+  group    Group            @relation(fields: [groupId], references: [id])
+
+  @@unique([userId, groupId]) // one membership per group
+}
+
+model CalendarConnection {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  provider    CalendarProvider
+  status      String
+  oauthTokens Json
+  user        User             @relation(fields: [userId], references: [id])
+}
+
+model AvailabilitySlot {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  groupId       String?  @db.Uuid
+  startAt       DateTime
+  endAt         DateTime
+  recurringRule String?
+  type          SlotType
+  user          User     @relation(fields: [userId], references: [id])
+  group         Group?   @relation(fields: [groupId], references: [id])
+}
+
+model Match {
+  id               String      @id @default(uuid()) @db.Uuid
+  groupId          String      @db.Uuid
+  scheduledFor     DateTime
+  algorithmVersion String
+  state            MatchState  @default(created)
+  group            Group       @relation(fields: [groupId], references: [id])
+  event            LunchEvent?
+}
+
+model LunchEvent {
+  id              String      @id @default(uuid()) @db.Uuid
+  matchId         String      @unique @db.Uuid
+  calendarEventId String?
+  venue           String?
+  meetingUrl      String?
+  status          EventStatus @default(tentative)
+  match           Match       @relation(fields: [matchId], references: [id])
+}
