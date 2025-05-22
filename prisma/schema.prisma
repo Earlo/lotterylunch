@@ -57,7 +57,7 @@ model User {
   name                String?
   timezone            String               @default("UTC")
   image               String?
-  authProvider        String
+  authProvider        String?
   memberships         Membership[]
   calendarConnections CalendarConnection[]
   availability        AvailabilitySlot[]
@@ -137,7 +137,7 @@ model LunchEvent {
 }
 
 model Account {
-  userId            String
+  userId            String  @db.Uuid
   type              String
   provider          String
   providerAccountId String
@@ -159,7 +159,7 @@ model Account {
 
 model Session {
   sessionToken String   @unique
-  userId       String
+  userId       String   @db.Uuid
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -178,7 +178,7 @@ model VerificationToken {
 // Optional for WebAuthn support
 model Authenticator {
   credentialID         String  @unique
-  userId               String
+  userId               String  @db.Uuid
   providerAccountId    String
   credentialPublicKey  String
   counter              Int

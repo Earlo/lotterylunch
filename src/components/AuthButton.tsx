@@ -1,6 +1,9 @@
+// src/components/AuthButton.tsx
+'use client';
+
 import { signIn, signOut, useSession } from 'next-auth/react';
 
-export function AuthButton() {
+export default function AuthButton() {
   const { data: session } = useSession();
   return session ? (
     <button onClick={() => signOut()}>Sign out</button>
