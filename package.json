@@ -15,21 +15,21 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.10.0",
-    "@prisma/client": "6.10.1",
-    "next": "15.3.4",
+    "@prisma/client": "6.11.1",
+    "next": "15.3.5",
     "next-auth": "5.0.0-beta.29"
   },
   "devDependencies": {
-    "@types/node": "24.0.7",
+    "@types/node": "24.0.10",
     "@types/react": "19.1.8",
-    "@typescript-eslint/eslint-plugin": "8.35.0",
-    "@typescript-eslint/parser": "8.35.0",
-    "eslint-config-next": "15.3.4",
+    "@typescript-eslint/eslint-plugin": "8.35.1",
+    "@typescript-eslint/parser": "8.35.1",
+    "eslint-config-next": "15.3.5",
     "eslint-config-prettier": "10.1.5",
     "eslint-import-resolver-typescript": "4.4.4",
     "eslint-plugin-import": "2.32.0",
     "prettier-plugin-organize-imports": "4.1.0",
-    "prisma": "6.10.1",
+    "prisma": "6.11.1",
     "typescript": "5.8.3"
   }
 }
