@@ -1,0 +1,9 @@
+# VCS / package artefacts
+.git/
+.svn/
+.hg/
+node_modules/
+
+# Docker-owned Postgres volume
+postgres-data/
+postgres-data/**
