@@ -6,6 +6,7 @@
   "plugins": [
     "prettier-plugin-organize-imports",
     "prettier-plugin-packagejson",
-    "prettier-plugin-prisma"
+    "prettier-plugin-prisma",
+    "prettier-plugin-tailwindcss"
   ]
 }

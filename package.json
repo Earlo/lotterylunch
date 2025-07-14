@@ -7,6 +7,7 @@
     "db:deploy": "prisma migrate deploy",
     "dev": "next dev --turbopack",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "prettier": "prettier --write . '!./postgres-data/**'",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -17,7 +18,8 @@
     "@auth/prisma-adapter": "2.10.0",
     "@prisma/client": "6.11.1",
     "next": "15.3.5",
-    "next-auth": "5.0.0-beta.29"
+    "next-auth": "5.0.0-beta.29",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "24.0.13",
@@ -28,10 +30,15 @@
     "eslint-config-prettier": "10.1.5",
     "eslint-import-resolver-typescript": "4.4.4",
     "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-security": "^3.0.1",
+    "eslint-plugin-sonarjs": "^3.0.4",
+    "eslint-plugin-tailwindcss": "^3.18.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "4.1.0",
     "prettier-plugin-packagejson": "^2.5.18",
     "prettier-plugin-prisma": "^5.0.0",
+    "prettier-plugin-tailwindcss": "^0.6.14",
     "prisma": "6.11.1",
     "typescript": "5.8.3"
   }
