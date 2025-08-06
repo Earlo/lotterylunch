@@ -19,7 +19,7 @@
     "@prisma/client": "6.13.0",
     "next": "15.4.5",
     "next-auth": "5.0.0-beta.29",
-    "zod": "4.0.14"
+    "zod": "4.0.15"
   },
   "devDependencies": {
     "@types/node": "24.2.0",
