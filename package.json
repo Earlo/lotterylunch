@@ -22,7 +22,7 @@
     "zod": "4.1.13"
   },
   "devDependencies": {
-    "@types/node": "25.0.0",
+    "@types/node": "25.0.1",
     "@types/react": "19.2.7",
     "@typescript-eslint/eslint-plugin": "8.49.0",
     "@typescript-eslint/parser": "8.49.0",
