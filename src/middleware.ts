@@ -1,2 +1,6 @@
-// middleware.ts
-export { auth as middleware } from '@/lib/auth';
+import { NextResponse } from 'next/server';
+
+// Prisma adapter isn't Edge-compatible; keep middleware no-op for now.
+export function middleware() {
+  return NextResponse.next();
+}

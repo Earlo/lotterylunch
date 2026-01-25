@@ -1,7 +1,6 @@
-version: '3.9'
 services:
   db:
-    image: postgres:17
+    image: postgres:18
     ports:
       - '5432:5432'
     environment:
@@ -9,6 +8,30 @@ services:
       POSTGRES_PASSWORD: devpass
       POSTGRES_DB: lotterylunch
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lotterylunch -d lotterylunch']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: node:24-bookworm
+    working_dir: /app
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env.local
+    environment:
+      DATABASE_URL: postgres://lotterylunch:devpass@db:5432/lotterylunch
+      DIRECT_URL: postgres://lotterylunch:devpass@db:5432/lotterylunch
+      SHADOW_DATABASE_URL: postgres://lotterylunch:devpass@db:5432/lotterylunch_shadow
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npm install && npx prisma generate && npm run dev:app"
 volumes:
-  pgdata:
+  node_modules:

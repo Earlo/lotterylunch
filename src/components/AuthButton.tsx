@@ -6,10 +6,7 @@ export default function AuthButton() {
   const { data: session } = useSession();
 
   const handleSignIn = () => {
-    signIn('google', { redirect: false })
-      .then((res) => {
-        if (res.error) console.error(res.error);
-      })
+    signIn('google')
       .catch(console.error);
   };
 
