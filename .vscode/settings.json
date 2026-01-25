@@ -3,6 +3,10 @@
   "eslint.format.enable": true,
   "eslint.run": "onSave",
   "eslint.lintTask.enable": true,
+  "eslint.useFlatConfig": true,
+  "eslint.options": {
+    "overrideConfigFile": "./eslint.config.mjs"
+  },
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },

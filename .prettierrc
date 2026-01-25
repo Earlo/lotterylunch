@@ -8,5 +8,8 @@
     "prettier-plugin-packagejson",
     "prettier-plugin-prisma",
     "prettier-plugin-tailwindcss"
-  ]
+  ],
+  "tailwindAttributes": ["className"],
+  "tailwindFunctions": ["cn", "twMerge", "clsx"],
+  "tailwindPreserveWhitespace": false
 }

@@ -7,8 +7,7 @@
     "db:deploy": "prisma migrate deploy",
     "dev": "docker compose up --build",
     "dev:app": "next dev --turbopack",
-    "lint": "next lint",
-    "lint:fix": "next lint --fix",
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"prisma/**/*.prisma\" \"*.{ts,tsx,js,jsx,mjs,cjs}\"",
     "prettier": "prettier --write . '!./postgres-data/**'",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -17,8 +16,9 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.1",
-    "@prisma/client": "7.3.0",
     "@prisma/adapter-pg": "7.3.0",
+    "@prisma/client": "7.3.0",
+    "@prisma/config": "^7.3.0",
     "next": "16.1.4",
     "next-auth": "5.0.0-beta.30",
     "pg": "8.13.1",
@@ -44,5 +44,8 @@
     "prettier-plugin-tailwindcss": "0.7.2",
     "prisma": "7.3.0",
     "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": "24.x || 25.x"
   }
 }

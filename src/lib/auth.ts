@@ -1,4 +1,3 @@
-// lib/auth.ts
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@auth/prisma-adapter';
@@ -46,9 +45,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     session(message) {
       console.info('[auth] session', message);
-    },
-    error(message) {
-      console.error('[auth] event:error', message);
     },
   },
   session: { strategy: 'jwt' },
