@@ -24,6 +24,37 @@ enum MembershipStatus {
   suspended
 }
 
+enum GroupVisibility {
+  open
+  invite_only
+}
+
+enum GroupRole {
+  owner
+  admin
+  member
+}
+
+enum RunStatus {
+  scheduled
+  open
+  matching
+  matched
+  canceled
+}
+
+enum ParticipationStatus {
+  pending
+  confirmed
+  declined
+}
+
+enum MatchStatus {
+  proposed
+  confirmed
+  canceled
+}
+
 enum CalendarProvider {
   google
   outlook
@@ -58,6 +89,7 @@ model User {
   image               String?
   authProvider        String?
   memberships         Membership[]
+  participations      Participation[]
   calendarConnections CalendarConnection[]
   availability        AvailabilitySlot[]
   ownedGroups         Group[]              @relation("GroupOwner")
@@ -73,12 +105,18 @@ model Group {
   name              String
   description       String?
   visibility        Visibility         @default(open)
+  groupVisibility   GroupVisibility    @default(open)
   ownerId           String             @db.Uuid
+  defaultGroupSize  Int                @default(2)
+  timezone          String             @default("UTC")
+  createdById       String?            @db.Uuid
   owner             User               @relation("GroupOwner", fields: [ownerId], references: [id])
   memberships       Membership[]
   matches           Match[]
+  lotteries         Lottery[]
   availabilitySlots AvailabilitySlot[]
   createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model Membership {
@@ -86,8 +124,11 @@ model Membership {
   userId   String           @db.Uuid
   groupId  String           @db.Uuid
   role     Role             @default(member)
+  groupRole GroupRole       @default(member)
   status   MembershipStatus @default(active)
   joinedAt DateTime         @default(now())
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
   user     User             @relation(fields: [userId], references: [id])
   group    Group            @relation(fields: [groupId], references: [id])
 
@@ -118,11 +159,18 @@ model AvailabilitySlot {
 model Match {
   id               String      @id @default(uuid()) @db.Uuid
   groupId          String      @db.Uuid
-  scheduledFor     DateTime
-  algorithmVersion String
+  runId            String?     @db.Uuid
+  scheduledFor     DateTime?
+  algorithmVersion String?
   state            MatchState  @default(created)
+  status           MatchStatus @default(proposed)
+  memberIds        Json?
   group            Group       @relation(fields: [groupId], references: [id])
+  run              LotteryRun? @relation(fields: [runId], references: [id])
   event            LunchEvent?
+  calendarArtifacts CalendarArtifact[]
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 }
 
 model LunchEvent {
@@ -188,4 +236,70 @@ model Authenticator {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, credentialID])
+}
+
+model Lottery {
+  id               String     @id @default(uuid()) @db.Uuid
+  groupId          String     @db.Uuid
+  name             String
+  isActive         Boolean    @default(true)
+  groupSizeMin     Int        @default(2)
+  groupSizeMax     Int        @default(3)
+  repeatWindowRuns Int        @default(3)
+  scheduleJson     Json
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  group Group       @relation(fields: [groupId], references: [id])
+  runs  LotteryRun[]
+
+  @@index([groupId])
+}
+
+model LotteryRun {
+  id                 String    @id @default(uuid()) @db.Uuid
+  lotteryId          String    @db.Uuid
+  status             RunStatus @default(scheduled)
+  enrollmentOpensAt  DateTime
+  enrollmentClosesAt DateTime
+  matchingExecutesAt DateTime
+  matchedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  lottery        Lottery         @relation(fields: [lotteryId], references: [id])
+  participations Participation[]
+  matches        Match[]
+
+  @@index([lotteryId])
+  @@index([status])
+}
+
+model Participation {
+  id          String              @id @default(uuid()) @db.Uuid
+  runId       String              @db.Uuid
+  userId      String              @db.Uuid
+  status      ParticipationStatus @default(pending)
+  respondedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  run  LotteryRun @relation(fields: [runId], references: [id])
+  user User       @relation(fields: [userId], references: [id])
+
+  @@unique([runId, userId])
+  @@index([runId])
+  @@index([userId])
+}
+
+model CalendarArtifact {
+  id        String   @id @default(uuid()) @db.Uuid
+  matchId   String   @db.Uuid
+  type      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id])
+
+  @@index([matchId])
 }

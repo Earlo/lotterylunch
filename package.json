@@ -7,7 +7,7 @@
     "db:deploy": "prisma migrate deploy",
     "dev": "docker compose up --build",
     "dev:app": "next dev --turbopack",
-    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"prisma/**/*.prisma\" \"*.{ts,tsx,js,jsx,mjs,cjs}\"",
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"*.{ts,tsx,js,jsx,mjs,cjs}\"",
     "prettier": "prettier --write . '!./postgres-data/**'",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -25,6 +25,7 @@
     "zod": "4.3.6"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.1.18",
     "@types/node": "25.0.10",
     "@types/react": "19.2.10",
     "@typescript-eslint/eslint-plugin": "8.54.0",
@@ -35,14 +36,14 @@
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-security": "3.0.1",
     "eslint-plugin-sonarjs": "3.0.6",
-    "eslint-plugin-tailwindcss": "3.18.2",
     "eslint-plugin-unused-imports": "4.3.0",
+    "postcss": "8.5.6",
     "prettier": "3.8.1",
     "prettier-plugin-organize-imports": "4.3.0",
     "prettier-plugin-packagejson": "3.0.0",
-    "prettier-plugin-prisma": "5.0.0",
     "prettier-plugin-tailwindcss": "0.7.2",
     "prisma": "7.3.0",
+    "tailwindcss": "4.1.18",
     "typescript": "5.9.3"
   },
   "engines": {
