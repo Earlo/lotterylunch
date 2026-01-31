@@ -137,29 +137,46 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Phase 8.5: Web UI Separation + Clarity (portal-focused)
 
 1. Establish a clear web UI boundary:
-   - Create `src/app/(webui)/**` route group with its own layout.
-   - Keep API routes under `src/app/api/**` only.
+   - [x] Create `src/app/(webui)/**` route group with its own layout.
+   - [x] Keep API routes under `src/app/api/**` only.
 2. Create a web UI service layer:
-   - Add a typed API client in `src/webui/api/**`.
-   - Add `src/webui/queries/**` for data hooks and cache keys.
-   - Add `src/webui/mutations/**` for write operations.
+   - [x] Add a typed API client in `src/webui/api/**`.
+   - [x] Add `src/webui/queries/**` for data hooks and cache keys.
+   - [x] Add `src/webui/mutations/**` for write operations.
 3. Define shared UI primitives:
-   - Add `src/webui/components/ui/**` for buttons, inputs, dialogs.
-   - Add `src/webui/components/layout/**` for app shell, nav, empty states.
+   - [x] Add `src/webui/components/ui/**` for buttons, inputs, dialogs.
+   - [x] Add `src/webui/components/layout/**` for app shell, nav, empty states.
 4. Define portal pages and states:
-   - `/portal` landing (empty state + CTA).
-   - `/portal/groups`, `/portal/groups/:groupId`.
-   - `/portal/lotteries/:lotteryId`, `/portal/runs/:runId`.
-   - Loading, empty, error, and unauthorized states for each.
+   - [x] `/portal` landing (empty state + CTA).
+   - [x] `/portal/groups`, `/portal/groups/:groupId`.
+   - [x] `/portal/lotteries/:lotteryId`, `/portal/runs/:runId`.
+   - [x] Loading, empty, error, and unauthorized states for each.
 5. Auth + session handling:
-   - Guarded routes (client + server).
-   - Redirect rules for unauthenticated users.
+   - [x] Guarded routes (client + server).
+   - [x] Redirect rules for unauthenticated users.
 6. Styling + design tokens:
-   - Define CSS variables and baseline typography.
-   - Document component usage and spacing scale.
+   - [x] Define CSS variables and baseline typography.
+   - [x] Document component usage and spacing scale.
 7. Add web UI tests:
-   - Smoke tests for core pages.
-   - API contract mocks for UI flows.
+   - [x] Smoke tests for core pages.
+   - [x] API contract mocks for UI flows.
+8. Add missing portal capabilities:
+   - [ ] Add a logout affordance in the portal shell.
+   - [ ] Add account settings UI (profile, timezone, avatar).
+   - [ ] Add group creation and join flows (create group, join by group ID or invite).
+   - [ ] Add calendar integration management (connect/disconnect providers, ICS download).
+   - [ ] Add lunch time preferences and lottery frequency controls.
+   - [ ] Add area/location field to preferences and surface in profile.
+
+## Phase 8.6: Auth Migration (portal + API)
+
+1. Migrate from NextAuth to Better Auth:
+   - [ ] Inventory current NextAuth usage and auth dependencies.
+   - [ ] Add Better Auth config and providers.
+   - [ ] Update API auth helpers and session retrieval.
+   - [ ] Update web UI auth components and guards.
+   - [ ] Update environment variables and secrets.
+   - [ ] Remove NextAuth dependencies and routes after cutover.
 
 ## Phase 9: API Quality Bar (must-have for API-first)
 

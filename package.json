@@ -12,25 +12,26 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset",
-    "start": "next start"
+    "start": "next start",
+    "test:webui": "node --test tests/webui.*.test.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "2.11.1",
     "@prisma/adapter-pg": "7.3.0",
     "@prisma/client": "7.3.0",
-    "@prisma/config": "^7.3.0",
-    "next": "16.1.5",
+    "@prisma/config": "7.3.0",
+    "next": "16.1.6",
     "next-auth": "5.0.0-beta.30",
-    "pg": "8.17.2",
+    "pg": "8.18.0",
     "zod": "4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.1.18",
-    "@types/node": "25.0.10",
+    "@types/node": "25.1.0",
     "@types/react": "19.2.10",
     "@typescript-eslint/eslint-plugin": "8.54.0",
     "@typescript-eslint/parser": "8.54.0",
-    "eslint-config-next": "16.1.5",
+    "eslint-config-next": "16.1.6",
     "eslint-config-prettier": "10.1.8",
     "eslint-import-resolver-typescript": "4.4.4",
     "eslint-plugin-import": "2.32.0",
