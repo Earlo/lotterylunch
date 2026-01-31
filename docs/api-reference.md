@@ -19,11 +19,13 @@ Successful responses return JSON payloads. Errors use a consistent envelope:
 ## Health
 
 1. `GET /api/v1/health`
+
 - Returns service metadata and a timestamp.
 
 ## Groups
 
 1. `POST /api/v1/groups`
+
 - Creates a group and an owner membership for the caller.
 - Body:
 
@@ -36,23 +38,29 @@ Successful responses return JSON payloads. Errors use a consistent envelope:
 ```
 
 2. `GET /api/v1/groups`
+
 - Lists groups where the caller has an active membership.
 
 3. `GET /api/v1/groups/:groupId`
+
 - Gets a single group, requiring membership.
 
 4. `PATCH /api/v1/groups/:groupId`
+
 - Updates a group, requiring owner/admin role.
 
 5. `DELETE /api/v1/groups/:groupId`
+
 - Deletes a group, requiring owner role.
 
 ## Memberships
 
 1. `GET /api/v1/groups/:groupId/memberships`
+
 - Lists memberships for a group.
 
 2. `POST /api/v1/groups/:groupId/memberships`
+
 - Join an open group when no `userId` is provided.
 - Invite a user when `userId` is provided (owner/admin only).
 
@@ -73,17 +81,21 @@ Invite example:
 ```
 
 3. `PATCH /api/v1/groups/:groupId/memberships/:membershipId`
+
 - Updates role/status (owner/admin only).
 
 4. `DELETE /api/v1/groups/:groupId/memberships/:membershipId`
+
 - Removes a membership (self, owner, or admin).
 
 ## Lotteries
 
 1. `GET /api/v1/groups/:groupId/lotteries`
+
 - Lists lotteries for a group.
 
 2. `POST /api/v1/groups/:groupId/lotteries`
+
 - Creates a lottery (owner/admin only).
 
 Example:
@@ -103,20 +115,25 @@ Example:
 ```
 
 3. `GET /api/v1/lotteries/:lotteryId`
+
 - Gets a lottery.
 
 4. `PATCH /api/v1/lotteries/:lotteryId`
+
 - Updates a lottery (owner/admin only).
 
 5. `DELETE /api/v1/lotteries/:lotteryId`
+
 - Deletes a lottery (owner/admin only).
 
 ## Runs
 
 1. `GET /api/v1/lotteries/:lotteryId/runs`
+
 - Lists runs for a lottery.
 
 2. `POST /api/v1/lotteries/:lotteryId/runs`
+
 - Creates a run (owner/admin only).
 
 Example:
@@ -130,20 +147,25 @@ Example:
 ```
 
 3. `GET /api/v1/runs/:runId`
+
 - Gets a run with participations and matches.
 
 4. `POST /api/v1/runs/:runId/cancel`
+
 - Cancels a run (owner/admin only).
 
 5. `POST /api/v1/runs/:runId/execute`
+
 - Executes matching for a run (owner/admin only).
 
 ## Participations
 
 1. `GET /api/v1/runs/:runId/participations`
+
 - Lists participations for a run.
 
 2. `POST /api/v1/runs/:runId/participations`
+
 - Upserts the caller's participation during the enrollment window.
 
 Example:

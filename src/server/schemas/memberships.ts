@@ -1,6 +1,5 @@
-import { z } from 'zod';
-
 import { nonEmptyString, uuidSchema } from '@/server/schemas/common';
+import { z } from 'zod';
 
 export const groupIdParamsSchema = z.object({
   groupId: uuidSchema,

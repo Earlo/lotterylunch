@@ -1,11 +1,11 @@
 import Link from 'next/link';
 
+import { requirePortalSession } from '@/webui/auth';
+import { ClientAuthGate } from '@/webui/components/auth/ClientAuthGate';
 import { AppShell } from '@/webui/components/layout/AppShell';
 import { EmptyState } from '@/webui/components/layout/EmptyState';
-import { ClientAuthGate } from '@/webui/components/auth/ClientAuthGate';
-import { Card } from '@/webui/components/ui/Card';
 import { Button } from '@/webui/components/ui/Button';
-import { requirePortalSession } from '@/webui/auth';
+import { Card } from '@/webui/components/ui/Card';
 
 export default async function PortalPage() {
   await requirePortalSession('/portal');
@@ -27,7 +27,7 @@ export default async function PortalPage() {
         />
         <ClientAuthGate>
           <Card title="Session confirmed">
-            <p className="text-sm text-[color:rgba(20,18,21,0.7)]">
+            <p className="text-sm text-[rgba(20,18,21,0.7)]">
               You are signed in and ready to configure your next run.
             </p>
           </Card>

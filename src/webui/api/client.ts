@@ -6,7 +6,10 @@ export type ApiError = {
 
 async function parseError(response: Response): Promise<ApiError> {
   try {
-    const payload = (await response.json()) as { error?: string; details?: unknown };
+    const payload = (await response.json()) as {
+      error?: string;
+      details?: unknown;
+    };
     return {
       status: response.status,
       message: payload?.error ?? response.statusText,
@@ -20,7 +23,10 @@ async function parseError(response: Response): Promise<ApiError> {
   }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(path, {
     ...init,
     headers: {

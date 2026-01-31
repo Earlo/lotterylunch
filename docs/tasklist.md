@@ -195,6 +195,7 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Missing Features Snapshot (as of now)
 
 ### API (still missing)
+
 - [ ] Calendar artifacts API (ICS generation + artifact CRUD).
 - [ ] Calendar connections API (connect/disconnect providers, status).
 - [ ] Availability slots API (lunch time windows / recurring availability).
@@ -205,6 +206,7 @@ This task list is organized to keep the API as the #1 priority and the portal as
 - [ ] Authorization tests for membership + group role rules.
 
 ### Web UI (still missing)
+
 - [ ] Group invite flow (send invite, join via invite token).
 - [ ] Membership management UI (roles, remove members).
 - [ ] Lottery creation/editing UI (scheduleJson, size, repeat window).

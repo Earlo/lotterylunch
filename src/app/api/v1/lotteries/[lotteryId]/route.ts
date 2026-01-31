@@ -1,7 +1,14 @@
 import { requireUser } from '@/server/auth/session';
 import { handleRoute } from '@/server/http/responses';
-import { lotteryIdParamsSchema, updateLotterySchema } from '@/server/schemas/lotteries';
-import { deleteLottery, getLottery, updateLottery } from '@/server/services/lotteries';
+import {
+  lotteryIdParamsSchema,
+  updateLotterySchema,
+} from '@/server/schemas/lotteries';
+import {
+  deleteLottery,
+  getLottery,
+  updateLottery,
+} from '@/server/services/lotteries';
 
 type Params = {
   params: {

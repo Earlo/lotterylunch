@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -96,6 +95,9 @@ model User {
   participations      Participation[]
   calendarConnections CalendarConnection[]
   availability        AvailabilitySlot[]
+  invitesCreated      GroupInvite[]
+  apiTokens           ApiToken[]
+  webhooks            WebhookEndpoint[]
   ownedGroups         Group[]              @relation("GroupOwner")
   accounts            Account[]
   sessions            Session[]
@@ -119,22 +121,23 @@ model Group {
   matches           Match[]
   lotteries         Lottery[]
   availabilitySlots AvailabilitySlot[]
+  invites           GroupInvite[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 }
 
 model Membership {
-  id       String           @id @default(uuid()) @db.Uuid
-  userId   String
-  groupId  String           @db.Uuid
-  role     Role             @default(member)
-  groupRole GroupRole       @default(member)
-  status   MembershipStatus @default(active)
-  joinedAt DateTime         @default(now())
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  user     User             @relation(fields: [userId], references: [id])
-  group    Group            @relation(fields: [groupId], references: [id])
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String
+  groupId   String           @db.Uuid
+  role      Role             @default(member)
+  groupRole GroupRole        @default(member)
+  status    MembershipStatus @default(active)
+  joinedAt  DateTime         @default(now())
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id])
+  group     Group            @relation(fields: [groupId], references: [id])
 
   @@unique([userId, groupId]) // one membership per group
 }
@@ -146,6 +149,63 @@ model CalendarConnection {
   status      String
   oauthTokens Json
   user        User             @relation(fields: [userId], references: [id])
+}
+
+model GroupInvite {
+  id          String   @id @default(cuid())
+  token       String   @unique
+  groupId     String   @db.Uuid
+  createdById String
+  expiresAt   DateTime
+  maxUses     Int      @default(1)
+  uses        Int      @default(0)
+  createdAt   DateTime @default(now())
+  group       Group    @relation(fields: [groupId], references: [id])
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  @@index([groupId])
+}
+
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  userId     String
+  url        String
+  events     String[]
+  secret     String
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  user       User              @relation(fields: [userId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+}
+
+model WebhookDelivery {
+  id            String          @id @default(cuid())
+  webhookId     String
+  event         String
+  payload       Json
+  status        String
+  attempts      Int             @default(0)
+  nextAttemptAt DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime        @default(now())
+  webhook       WebhookEndpoint @relation(fields: [webhookId], references: [id])
+
+  @@index([webhookId])
 }
 
 model AvailabilitySlot {
@@ -161,20 +221,20 @@ model AvailabilitySlot {
 }
 
 model Match {
-  id               String      @id @default(uuid()) @db.Uuid
-  groupId          String      @db.Uuid
-  runId            String?     @db.Uuid
-  scheduledFor     DateTime?
-  algorithmVersion String?
-  state            MatchState  @default(created)
-  status           MatchStatus @default(proposed)
-  memberIds        Json?
-  group            Group       @relation(fields: [groupId], references: [id])
-  run              LotteryRun? @relation(fields: [runId], references: [id])
-  event            LunchEvent?
+  id                String             @id @default(uuid()) @db.Uuid
+  groupId           String             @db.Uuid
+  runId             String?            @db.Uuid
+  scheduledFor      DateTime?
+  algorithmVersion  String?
+  state             MatchState         @default(created)
+  status            MatchStatus        @default(proposed)
+  memberIds         Json?
+  group             Group              @relation(fields: [groupId], references: [id])
+  run               LotteryRun?        @relation(fields: [runId], references: [id])
+  event             LunchEvent?
   calendarArtifacts CalendarArtifact[]
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model LunchEvent {
@@ -188,11 +248,11 @@ model LunchEvent {
 }
 
 model Account {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   accountId             String
   providerId            String
   userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   accessToken           String?
   refreshToken          String?
   idToken               String?
@@ -200,8 +260,8 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([providerId, accountId])
 }
@@ -254,18 +314,18 @@ model Authenticator {
 }
 
 model Lottery {
-  id               String     @id @default(uuid()) @db.Uuid
-  groupId          String     @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
+  groupId          String   @db.Uuid
   name             String
-  isActive         Boolean    @default(true)
-  groupSizeMin     Int        @default(2)
-  groupSizeMax     Int        @default(3)
-  repeatWindowRuns Int        @default(3)
+  isActive         Boolean  @default(true)
+  groupSizeMin     Int      @default(2)
+  groupSizeMax     Int      @default(3)
+  repeatWindowRuns Int      @default(3)
   scheduleJson     Json
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  group Group       @relation(fields: [groupId], references: [id])
+  group Group        @relation(fields: [groupId], references: [id])
   runs  LotteryRun[]
 
   @@index([groupId])

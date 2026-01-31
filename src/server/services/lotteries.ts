@@ -1,5 +1,7 @@
-import { Role } from '@prisma/client';
-
+import {
+  requireGroupMembership,
+  requireGroupRole,
+} from '@/server/auth/authorization';
 import {
   createLotteryForGroup,
   deleteLotteryById,
@@ -7,9 +9,12 @@ import {
   listLotteriesForGroup,
   updateLotteryById,
 } from '@/server/db/lotteries';
-import { requireGroupMembership, requireGroupRole } from '@/server/auth/authorization';
 import { badRequest, notFound } from '@/server/http/errors';
-import type { CreateLotteryInput, UpdateLotteryInput } from '@/server/schemas/lotteries';
+import type {
+  CreateLotteryInput,
+  UpdateLotteryInput,
+} from '@/server/schemas/lotteries';
+import { Role } from '@prisma/client';
 
 function assertScheduleJson(scheduleJson: CreateLotteryInput['scheduleJson']) {
   // We keep scheduleJson intentionally flexible, but require a non-empty object.
@@ -18,7 +23,11 @@ function assertScheduleJson(scheduleJson: CreateLotteryInput['scheduleJson']) {
   }
 }
 
-export async function createLottery(groupId: string, actorId: string, input: CreateLotteryInput) {
+export async function createLottery(
+  groupId: string,
+  actorId: string,
+  input: CreateLotteryInput,
+) {
   await requireGroupRole(groupId, actorId, [Role.owner, Role.admin]);
   assertScheduleJson(input.scheduleJson);
   return createLotteryForGroup(groupId, input);
@@ -37,7 +46,11 @@ export async function getLottery(lotteryId: string, actorId: string) {
   return lottery;
 }
 
-export async function updateLottery(lotteryId: string, actorId: string, input: UpdateLotteryInput) {
+export async function updateLottery(
+  lotteryId: string,
+  actorId: string,
+  input: UpdateLotteryInput,
+) {
   const lottery = await getLotteryById(lotteryId);
   if (!lottery) throw notFound('Lottery not found');
 

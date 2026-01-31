@@ -1,6 +1,9 @@
 import { requireUser } from '@/server/auth/session';
 import { handleRoute } from '@/server/http/responses';
-import { groupLotteryParamsSchema, createLotterySchema } from '@/server/schemas/lotteries';
+import {
+  createLotterySchema,
+  groupLotteryParamsSchema,
+} from '@/server/schemas/lotteries';
 import { createLottery, listLotteries } from '@/server/services/lotteries';
 
 type Params = {

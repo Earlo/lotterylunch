@@ -1,8 +1,4 @@
-import type {
-  ComponentPropsWithoutRef,
-  ElementType,
-  ReactNode,
-} from 'react';
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react';
 
 const baseStyles =
   'inline-flex items-center justify-center gap-2 rounded-full border border-transparent px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--haze)] disabled:cursor-not-allowed disabled:opacity-60';

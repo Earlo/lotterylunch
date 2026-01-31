@@ -1,7 +1,14 @@
 import { requireUser } from '@/server/auth/session';
 import { handleRoute } from '@/server/http/responses';
-import { groupIdParamsSchema, updateGroupSchema } from '@/server/schemas/groups';
-import { deleteGroupForUser, getGroupForUser, updateGroupForUser } from '@/server/services/groups';
+import {
+  groupIdParamsSchema,
+  updateGroupSchema,
+} from '@/server/schemas/groups';
+import {
+  deleteGroupForUser,
+  getGroupForUser,
+  updateGroupForUser,
+} from '@/server/services/groups';
 
 type Params = {
   params: {

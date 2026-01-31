@@ -4,7 +4,13 @@ import type { UserProfile } from '@/webui/api/types';
 export type UpdateUserProfileInput = Partial<
   Pick<
     UserProfile,
-    'name' | 'timezone' | 'image' | 'area' | 'lunchTime' | 'preferredDays' | 'lotteryFrequency'
+    | 'name'
+    | 'timezone'
+    | 'image'
+    | 'area'
+    | 'lunchTime'
+    | 'preferredDays'
+    | 'lotteryFrequency'
   >
 >;
 

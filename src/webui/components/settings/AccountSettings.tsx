@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-
 import { authClient } from '@/lib/auth-client';
 import type { ApiError } from '@/webui/api/client';
 import { Button } from '@/webui/components/ui/Button';
 import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
-import { fetchUserProfile } from '@/webui/queries/user';
 import { updateUserProfile } from '@/webui/mutations/user';
+import { fetchUserProfile } from '@/webui/queries/user';
+import { useEffect, useMemo, useState } from 'react';
 
 export function AccountSettings() {
   const { data: session } = authClient.useSession();
@@ -38,7 +37,8 @@ export function AccountSettings() {
 
   const email = session?.user?.email ?? 'Signed-in user';
   const canSave = useMemo(
-    () => Boolean(name.trim() || timezone.trim() || area.trim() || photoUrl.trim()),
+    () =>
+      Boolean(name.trim() || timezone.trim() || area.trim() || photoUrl.trim()),
     [name, timezone, area, photoUrl],
   );
 
@@ -63,11 +63,11 @@ export function AccountSettings() {
   return (
     <div className="grid gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--moss)]">
+        <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">
           Account
         </p>
         <h2 className="text-2xl font-semibold">Profile details</h2>
-        <p className="mt-1 text-sm text-[color:rgba(20,18,21,0.7)]">
+        <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
           Manage your identity, timezone, and location signals used by matches.
         </p>
       </div>
@@ -116,7 +116,11 @@ export function AccountSettings() {
       </div>
 
       <div>
-        <Button variant="ghost" onClick={handleSave} disabled={!canSave || status === 'saving'}>
+        <Button
+          variant="ghost"
+          onClick={handleSave}
+          disabled={!canSave || status === 'saving'}
+        >
           {status === 'saving' ? 'Saving...' : 'Save profile'}
         </Button>
       </div>

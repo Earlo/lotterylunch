@@ -1,7 +1,6 @@
-import { RunStatus } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
 import type { CreateRunInput } from '@/server/schemas/runs';
+import { RunStatus } from '@prisma/client';
 
 export function createRunForLottery(lotteryId: string, input: CreateRunInput) {
   return prisma.lotteryRun.create({
@@ -59,7 +58,10 @@ export function cancelRun(runId: string) {
   });
 }
 
-export function listRecentMatchesForLottery(lotteryId: string, limitRuns: number) {
+export function listRecentMatchesForLottery(
+  lotteryId: string,
+  limitRuns: number,
+) {
   return prisma.match.findMany({
     where: {
       run: {
@@ -79,7 +81,14 @@ export function listRecentMatchesForLottery(lotteryId: string, limitRuns: number
   });
 }
 
-export function replaceRunMatches(runId: string, matches: Array<{ groupId: string; memberIds: string[]; algorithmVersion: string }>) {
+export function replaceRunMatches(
+  runId: string,
+  matches: Array<{
+    groupId: string;
+    memberIds: string[];
+    algorithmVersion: string;
+  }>,
+) {
   return prisma.$transaction(async (tx) => {
     await tx.match.deleteMany({ where: { runId } });
 

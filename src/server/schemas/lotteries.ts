@@ -1,6 +1,5 @@
-import { z } from 'zod';
-
 import { uuidSchema } from '@/server/schemas/common';
+import { z } from 'zod';
 
 export const lotteryIdParamsSchema = z.object({
   lotteryId: uuidSchema,

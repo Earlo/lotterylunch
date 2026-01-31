@@ -1,6 +1,9 @@
+import {
+  nonEmptyString,
+  uuidSchema,
+  visibilitySchema,
+} from '@/server/schemas/common';
 import { z } from 'zod';
-
-import { nonEmptyString, uuidSchema, visibilitySchema } from '@/server/schemas/common';
 
 export const createGroupSchema = z.object({
   name: nonEmptyString.max(120),

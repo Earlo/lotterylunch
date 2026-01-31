@@ -1,7 +1,13 @@
 import { requireUser } from '@/server/auth/session';
 import { handleRoute } from '@/server/http/responses';
-import { runParticipationParamsSchema, upsertParticipationSchema } from '@/server/schemas/participations';
-import { listParticipations, upsertMyParticipation } from '@/server/services/participations';
+import {
+  runParticipationParamsSchema,
+  upsertParticipationSchema,
+} from '@/server/schemas/participations';
+import {
+  listParticipations,
+  upsertMyParticipation,
+} from '@/server/services/participations';
 
 type Params = {
   params: {

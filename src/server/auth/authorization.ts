@@ -1,7 +1,6 @@
-import { MembershipStatus, Role } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
 import { forbidden, notFound } from '@/server/http/errors';
+import { MembershipStatus, Role } from '@prisma/client';
 
 export async function requireGroupMembership(
   groupId: string,
@@ -39,6 +38,10 @@ export async function requireGroupMembership(
   return membership;
 }
 
-export async function requireGroupRole(groupId: string, userId: string, roles: Role[]) {
+export async function requireGroupRole(
+  groupId: string,
+  userId: string,
+  roles: Role[],
+) {
   return requireGroupMembership(groupId, userId, { roles });
 }

@@ -106,10 +106,15 @@ export function createMatches(input: MatchingInput): MatchingResult {
   const attempts = 6;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const shuffled = shuffleWithSeed(input.participantIds, `${baseSeed}:${attempt}`);
+    const shuffled = shuffleWithSeed(
+      input.participantIds,
+      `${baseSeed}:${attempt}`,
+    );
     const { groups, remainder } = chunkGreedy(shuffled, minSize, maxSize);
 
-    const conflicted = groups.some((group) => hasRecentConflict(group, recentPairs));
+    const conflicted = groups.some((group) =>
+      hasRecentConflict(group, recentPairs),
+    );
     if (!conflicted) {
       return {
         matches: groups,
@@ -120,7 +125,10 @@ export function createMatches(input: MatchingInput): MatchingResult {
   }
 
   // Fall back to best-effort final attempt even if conflicts remain.
-  const shuffled = shuffleWithSeed(input.participantIds, `${baseSeed}:fallback`);
+  const shuffled = shuffleWithSeed(
+    input.participantIds,
+    `${baseSeed}:fallback`,
+  );
   const { groups, remainder } = chunkGreedy(shuffled, minSize, maxSize);
 
   return {

@@ -1,6 +1,6 @@
 import { requirePortalSession } from '@/webui/auth';
+import { GroupDetailClient } from '@/webui/components/groups/GroupDetailClient';
 import { AppShell } from '@/webui/components/layout/AppShell';
-import { Card } from '@/webui/components/ui/Card';
 
 export default async function GroupDetailPage({
   params,
@@ -14,12 +14,7 @@ export default async function GroupDetailPage({
       title="Group detail"
       description="Membership, invitations, and upcoming runs will appear here."
     >
-      <Card title="Group status">
-        <p className="text-sm text-[color:rgba(20,18,21,0.7)]">
-          Group {params.groupId} is connected. Wire the API client to show
-          membership and scheduling controls.
-        </p>
-      </Card>
+      <GroupDetailClient groupId={params.groupId} />
     </AppShell>
   );
 }

@@ -1,10 +1,20 @@
-import { MembershipStatus, Role, Visibility } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
-import { deleteGroupById, getGroupById, listActiveGroupsForUser, updateGroupById } from '@/server/db/groups';
-import { requireGroupMembership, requireGroupRole } from '@/server/auth/authorization';
+import {
+  requireGroupMembership,
+  requireGroupRole,
+} from '@/server/auth/authorization';
+import {
+  deleteGroupById,
+  getGroupById,
+  listActiveGroupsForUser,
+  updateGroupById,
+} from '@/server/db/groups';
 import { notFound } from '@/server/http/errors';
-import type { CreateGroupInput, UpdateGroupInput } from '@/server/schemas/groups';
+import type {
+  CreateGroupInput,
+  UpdateGroupInput,
+} from '@/server/schemas/groups';
+import { MembershipStatus, Role, Visibility } from '@prisma/client';
 
 export async function createGroup(userId: string, input: CreateGroupInput) {
   return prisma.$transaction(async (tx) => {
@@ -48,7 +58,11 @@ export async function getGroupForUser(groupId: string, userId: string) {
   return group;
 }
 
-export async function updateGroupForUser(groupId: string, userId: string, input: UpdateGroupInput) {
+export async function updateGroupForUser(
+  groupId: string,
+  userId: string,
+  input: UpdateGroupInput,
+) {
   await requireGroupRole(groupId, userId, [Role.owner, Role.admin]);
 
   const group = await getGroupById(groupId);

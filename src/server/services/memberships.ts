@@ -1,9 +1,14 @@
-import { MembershipStatus, Role, Visibility } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
-import { requireGroupMembership, requireGroupRole } from '@/server/auth/authorization';
+import {
+  requireGroupMembership,
+  requireGroupRole,
+} from '@/server/auth/authorization';
 import { badRequest, forbidden, notFound } from '@/server/http/errors';
-import type { CreateMembershipInput, UpdateMembershipInput } from '@/server/schemas/memberships';
+import type {
+  CreateMembershipInput,
+  UpdateMembershipInput,
+} from '@/server/schemas/memberships';
+import { MembershipStatus, Role, Visibility } from '@prisma/client';
 
 async function getGroup(groupId: string) {
   const group = await prisma.group.findUnique({ where: { id: groupId } });
@@ -114,7 +119,11 @@ export async function updateMembership(
     throw notFound('Membership not found');
   }
 
-  if (membership.role === Role.owner && input.role && input.role !== Role.owner) {
+  if (
+    membership.role === Role.owner &&
+    input.role &&
+    input.role !== Role.owner
+  ) {
     throw forbidden('Owner role cannot be changed here');
   }
 
@@ -136,8 +145,14 @@ export async function updateMembership(
   return updated;
 }
 
-export async function removeMembership(groupId: string, actorId: string, membershipId: string) {
-  const membership = await prisma.membership.findUnique({ where: { id: membershipId } });
+export async function removeMembership(
+  groupId: string,
+  actorId: string,
+  membershipId: string,
+) {
+  const membership = await prisma.membership.findUnique({
+    where: { id: membershipId },
+  });
 
   if (!membership || membership.groupId !== groupId) {
     throw notFound('Membership not found');

@@ -1,7 +1,8 @@
-import { ParticipationStatus, Role, RunStatus } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
-import { createMatches } from '@/server/domain/matching';
+import {
+  requireGroupMembership,
+  requireGroupRole,
+} from '@/server/auth/authorization';
 import { getLotteryById } from '@/server/db/lotteries';
 import {
   cancelRun as cancelRunRecord,
@@ -13,9 +14,11 @@ import {
   replaceRunMatches,
   updateRunStatus,
 } from '@/server/db/runs';
-import { requireGroupMembership, requireGroupRole } from '@/server/auth/authorization';
+import { createMatches } from '@/server/domain/matching';
 import { badRequest, notFound } from '@/server/http/errors';
 import type { CreateRunInput } from '@/server/schemas/runs';
+import { emitWebhookEvent } from '@/server/services/webhooks';
+import { ParticipationStatus, Role, RunStatus } from '@prisma/client';
 
 function parseMemberIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -35,7 +38,11 @@ async function getRunWithLottery(runId: string) {
   return run;
 }
 
-export async function createRun(lotteryId: string, actorId: string, input: CreateRunInput) {
+export async function createRun(
+  lotteryId: string,
+  actorId: string,
+  input: CreateRunInput,
+) {
   const lottery = await getLotteryById(lotteryId);
   if (!lottery) throw notFound('Lottery not found');
 
@@ -66,7 +73,10 @@ export async function getRun(runId: string, actorId: string) {
 
 export async function cancelRun(runId: string, actorId: string) {
   const run = await getRunWithLottery(runId);
-  await requireGroupRole(run.lottery.groupId, actorId, [Role.owner, Role.admin]);
+  await requireGroupRole(run.lottery.groupId, actorId, [
+    Role.owner,
+    Role.admin,
+  ]);
 
   if (run.status === RunStatus.canceled || run.status === RunStatus.matched) {
     throw badRequest('Run cannot be canceled in its current state');
@@ -79,7 +89,10 @@ export async function cancelRun(runId: string, actorId: string) {
 
 export async function executeRun(runId: string, actorId: string) {
   const run = await getRunWithLottery(runId);
-  await requireGroupRole(run.lottery.groupId, actorId, [Role.owner, Role.admin]);
+  await requireGroupRole(run.lottery.groupId, actorId, [
+    Role.owner,
+    Role.admin,
+  ]);
 
   if (run.status === RunStatus.canceled) {
     throw badRequest('Canceled runs cannot be executed');
@@ -90,7 +103,11 @@ export async function executeRun(runId: string, actorId: string) {
   }
 
   await updateRunStatus(runId, RunStatus.matching);
-  console.info('[runs] matching_started', { runId, lotteryId: run.lotteryId, actorId });
+  console.info('[runs] matching_started', {
+    runId,
+    lotteryId: run.lotteryId,
+    actorId,
+  });
 
   const confirmedParticipants = run.participations
     .filter((p) => p.status === ParticipationStatus.confirmed)
@@ -142,5 +159,13 @@ export async function executeRun(runId: string, actorId: string) {
     unmatchedCount: matching.unmatched.length,
     algorithmVersion: matching.algorithmVersion,
   });
+
+  await emitWebhookEvent(actorId, 'run.executed', {
+    runId,
+    lotteryId: run.lotteryId,
+    matchCount: matching.matches.length,
+    unmatchedCount: matching.unmatched.length,
+  });
+
   return getRunById(runId);
 }

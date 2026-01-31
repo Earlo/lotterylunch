@@ -7,7 +7,9 @@ export type CreateGroupInput = {
   visibility?: 'open' | 'invite_only';
 };
 
-export async function createGroup(input: CreateGroupInput): Promise<GroupDetail> {
+export async function createGroup(
+  input: CreateGroupInput,
+): Promise<GroupDetail> {
   return apiFetch<GroupDetail>('/api/v1/groups', {
     method: 'POST',
     body: JSON.stringify(input),

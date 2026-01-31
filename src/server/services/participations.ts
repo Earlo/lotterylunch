@@ -1,9 +1,11 @@
-import { ParticipationStatus, Role } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
-import { requireGroupMembership, requireGroupRole } from '@/server/auth/authorization';
+import {
+  requireGroupMembership,
+  requireGroupRole,
+} from '@/server/auth/authorization';
 import { badRequest, notFound } from '@/server/http/errors';
 import type { UpsertParticipationInput } from '@/server/schemas/participations';
+import { ParticipationStatus, Role } from '@prisma/client';
 
 async function getRunWithLottery(runId: string) {
   const run = await prisma.lotteryRun.findUnique({
@@ -66,7 +68,10 @@ export async function adminUpsertParticipation(
   status: ParticipationStatus,
 ) {
   const run = await getRunWithLottery(runId);
-  await requireGroupRole(run.lottery.groupId, actorId, [Role.owner, Role.admin]);
+  await requireGroupRole(run.lottery.groupId, actorId, [
+    Role.owner,
+    Role.admin,
+  ]);
 
   const now = new Date();
 

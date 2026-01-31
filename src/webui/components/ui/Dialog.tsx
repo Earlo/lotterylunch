@@ -1,6 +1,5 @@
-import type { ReactNode } from 'react';
-
 import { Button } from '@/webui/components/ui/Button';
+import type { ReactNode } from 'react';
 
 export function Dialog({
   open,
@@ -17,7 +16,7 @@ export function Dialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
-      <div className="w-full max-w-lg rounded-[var(--radius-lg)] bg-white p-6 shadow-lg">
+      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">{title}</h2>
           {onClose ? (
@@ -26,9 +25,7 @@ export function Dialog({
             </Button>
           ) : null}
         </div>
-        <div className="mt-4 text-sm text-[color:rgba(20,18,21,0.7)]">
-          {children}
-        </div>
+        <div className="mt-4 text-sm text-[rgba(20,18,21,0.7)]">{children}</div>
       </div>
     </div>
   );

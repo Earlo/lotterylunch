@@ -1,7 +1,13 @@
 import { requireUser } from '@/server/auth/session';
 import { handleRoute } from '@/server/http/responses';
-import { membershipIdParamsSchema, updateMembershipSchema } from '@/server/schemas/memberships';
-import { removeMembership, updateMembership } from '@/server/services/memberships';
+import {
+  membershipIdParamsSchema,
+  updateMembershipSchema,
+} from '@/server/schemas/memberships';
+import {
+  removeMembership,
+  updateMembership,
+} from '@/server/services/memberships';
 
 type Params = {
   params: {

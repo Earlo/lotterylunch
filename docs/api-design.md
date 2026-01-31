@@ -1,15 +1,18 @@
 # LotteryLunch API-First Design Document
 
 ## 1. Summary
+
 LotteryLunch is an API-first service for organizing "lottery lunches" (randomized small-group meals). The web portal is a first-party client of the API, but the API is the primary product surface and must be clean, stable, and integrator-friendly.
 
 Key goals:
+
 - Provide a generic, well-structured API for organizing recurring randomized lunches.
 - Support both public groups (open participation) and personal/private groups (invite-only).
 - Support calendar invites and lifecycle events (schedule, confirm, cancel, reschedule).
 - Enable integrations with other platforms/services via a clear auth and webhook story.
 
 Non-goals (initially):
+
 - Deep calendar provider write-back beyond basic invite links/ICS generation.
 - Complex multi-tenant enterprise features (SCIM, SSO beyond OAuth, etc.).
 
@@ -18,6 +21,7 @@ Non-goals (initially):
 ## 2. Product Requirements (API Perspective)
 
 ### 2.1 Core capabilities
+
 1. Users can create and join groups.
 2. Groups can be public or private.
 3. A group can run "lotteries" on a schedule (e.g., weekly).
@@ -31,6 +35,7 @@ Non-goals (initially):
    - Receive events via webhooks.
 
 ### 2.2 Primary API surfaces
+
 - Identity/authentication.
 - Groups + memberships.
 - Lotteries (definitions).
@@ -44,6 +49,7 @@ Non-goals (initially):
 ## 3. Architecture Overview
 
 This repo is already a Next.js app with Prisma and NextAuth. We will treat it as:
+
 - API host: Next.js Route Handlers under `src/app/api/**`.
 - Core domain logic: `src/server/**` (pure functions + services).
 - Persistence: Prisma models + repositories under `src/server/db/**`.
@@ -51,6 +57,7 @@ This repo is already a Next.js app with Prisma and NextAuth. We will treat it as
 - Portal: `src/app/**` consumes the same domain services.
 
 ### 3.1 Layered structure (proposed)
+
 - `src/app/api/v1/**/route.ts`
   - Thin HTTP layer (parsing, auth, status codes).
 - `src/server/services/**`
@@ -69,6 +76,7 @@ This keeps the API stable and makes the portal just another client.
 ## 4. Domain Model
 
 ### 4.1 Entities
+
 1. User
    - A person authenticated via OAuth (NextAuth).
 2. Group
@@ -92,21 +100,24 @@ This keeps the API stable and makes the portal just another client.
 9. WebhookEndpoint
    - A destination configured to receive events.
 10. WebhookDelivery
-   - Delivery attempt records for observability/retry.
+
+- Delivery attempt records for observability/retry.
 
 ### 4.2 Key relationships
-- Group 1..* Lottery
-- Group 1..* Membership
-- Lottery 1..* LotteryRun
-- LotteryRun 1..* Participation
-- LotteryRun 1..* Match
-- Match 0..* CalendarArtifact
+
+- Group 1..\* Lottery
+- Group 1..\* Membership
+- Lottery 1..\* LotteryRun
+- LotteryRun 1..\* Participation
+- LotteryRun 1..\* Match
+- Match 0..\* CalendarArtifact
 
 ---
 
 ## 5. Matching & Scheduling Concepts
 
 ### 5.1 Matching rules (initial)
+
 - Group size target: default 2, optional 3–4.
 - Avoid recent repeats: do not match users who met within last K runs.
 - Respect participation: match only `confirmed` users.
@@ -114,10 +125,12 @@ This keeps the API stable and makes the portal just another client.
   - If 1 user left over, create a 3-person group (if allowed) or mark unmatched.
 
 ### 5.2 Scheduling modes
+
 - Manual: integrator or admin triggers a run.
 - Scheduled: system generates runs based on a schedule.
 
 ### 5.3 Scheduling configuration (Lottery)
+
 - Frequency: weekly (initial).
 - Day-of-week.
 - Enrollment cutoff time.
@@ -129,6 +142,7 @@ This keeps the API stable and makes the portal just another client.
 ## 6. API Design
 
 ### 6.1 Principles
+
 - Versioned: `/api/v1/**`.
 - Resource-oriented JSON.
 - Idempotent where it matters.
@@ -136,17 +150,21 @@ This keeps the API stable and makes the portal just another client.
 - Consistent error envelope.
 
 ### 6.2 Auth model
+
 Two auth modes:
+
 1. User session auth (first-party portal + OAuth flows).
 2. API tokens (integrators / service-to-service).
 
 Recommended approach:
+
 - Keep NextAuth for user sessions.
 - Add API tokens:
   - Personal Access Tokens (PAT) for user-scoped integrations.
   - Optional Group-scoped tokens for automation.
 
 ### 6.3 Error envelope (proposed)
+
 All non-2xx responses return:
 
 ```json
@@ -164,10 +182,12 @@ All non-2xx responses return:
 Note: these are the minimum viable API surfaces to support both integrations and the portal.
 
 #### Users
+
 - `GET /api/v1/me`
   - Returns current authenticated user profile and global preferences.
 
 #### Groups
+
 - `POST /api/v1/groups`
   - Create a group.
 - `GET /api/v1/groups`
@@ -177,6 +197,7 @@ Note: these are the minimum viable API surfaces to support both integrations and
 - `DELETE /api/v1/groups/:groupId`
 
 Group fields:
+
 - `name`
 - `description`
 - `visibility` (`public` | `private`)
@@ -184,6 +205,7 @@ Group fields:
 - `timezone`
 
 #### Memberships
+
 - `POST /api/v1/groups/:groupId/memberships`
   - Join public group OR invite user to private group (role-gated).
 - `GET /api/v1/groups/:groupId/memberships`
@@ -192,6 +214,7 @@ Group fields:
 - `DELETE /api/v1/groups/:groupId/memberships/:membershipId`
 
 #### Lotteries
+
 - `POST /api/v1/groups/:groupId/lotteries`
 - `GET /api/v1/groups/:groupId/lotteries`
 - `GET /api/v1/lotteries/:lotteryId`
@@ -199,6 +222,7 @@ Group fields:
 - `DELETE /api/v1/lotteries/:lotteryId`
 
 Lottery fields:
+
 - `name`
 - `isActive`
 - `groupSizeMin`
@@ -212,6 +236,7 @@ Lottery fields:
   - `timezone`
 
 #### Lottery runs
+
 - `POST /api/v1/lotteries/:lotteryId/runs`
   - Manual run creation.
 - `GET /api/v1/lotteries/:lotteryId/runs`
@@ -221,6 +246,7 @@ Lottery fields:
 - `POST /api/v1/runs/:runId/cancel`
 
 Run fields:
+
 - `status` (`scheduled` | `open` | `matching` | `matched` | `canceled`)
 - `enrollmentOpensAt`
 - `enrollmentClosesAt`
@@ -228,25 +254,30 @@ Run fields:
 - `matchedAt`
 
 #### Participations
+
 - `PUT /api/v1/runs/:runId/participations/me`
   - Upsert current user participation for a run.
 - `GET /api/v1/runs/:runId/participations`
   - Admin visibility.
 
 Participation fields:
+
 - `status` (`pending` | `confirmed` | `declined`)
 - `respondedAt`
 
 #### Matches
+
 - `GET /api/v1/runs/:runId/matches`
 - `GET /api/v1/matches/:matchId`
 
 Match fields:
+
 - `runId`
 - `memberUserIds`
 - `status` (`proposed` | `confirmed` | `canceled`)
 
 #### Calendar artifacts
+
 - `POST /api/v1/matches/:matchId/calendar-artifacts`
   - Generate ICS / invite link metadata.
 - `GET /api/v1/matches/:matchId/calendar-artifacts`
@@ -254,6 +285,7 @@ Match fields:
   - ICS download endpoint.
 
 Calendar fields:
+
 - `type` (`ics`)
 - `title`
 - `startsAt`
@@ -263,12 +295,14 @@ Calendar fields:
 - `notes`
 
 #### Webhooks
+
 - `POST /api/v1/webhooks/endpoints`
 - `GET /api/v1/webhooks/endpoints`
 - `PATCH /api/v1/webhooks/endpoints/:endpointId`
 - `DELETE /api/v1/webhooks/endpoints/:endpointId`
 
 Suggested events:
+
 - `group.created`
 - `membership.created`
 - `lottery.created`
@@ -285,6 +319,7 @@ Suggested events:
 This is a schema sketch, not a drop-in. It is intentionally explicit to guide implementation.
 
 Key notes:
+
 - Keep IDs as `cuid()` or `uuid()` consistently.
 - Record state transitions with timestamps.
 - Many auth models will already exist via NextAuth tables; avoid breaking them.
@@ -397,6 +432,7 @@ model CalendarArtifact {
 ## 8. API Contracts & Validation
 
 Recommended approach:
+
 - Define shared schemas using Zod (or similar) under `src/server/schemas/**`.
 - Use the same schemas for:
   - Route handler input validation.
@@ -404,6 +440,7 @@ Recommended approach:
   - Response shaping.
 
 Consistency goal:
+
 - Every endpoint has:
   - Request schema.
   - Response schema.
@@ -414,17 +451,20 @@ Consistency goal:
 ## 9. Calendar Invites Strategy
 
 Start simple and integrator-friendly:
+
 1. Provide ICS generation per match.
 2. Provide event metadata in API responses.
 3. Optionally support provider integrations later (Google Calendar write-back).
 
 Practical flow:
+
 - Client requests calendar artifact creation.
 - API returns:
   - Artifact metadata.
   - A stable ICS download URL.
 
 ICS specifics:
+
 - Use UTC internally.
 - Include group/match identifiers in ICS UID.
 - Avoid exposing private membership data in summaries.
@@ -434,11 +474,13 @@ ICS specifics:
 ## 10. Scheduling & Execution Strategy
 
 Scheduling requires background processing. In a Next.js environment, treat it explicitly:
+
 - Introduce a job runner:
   - Option A: managed cron hitting an internal endpoint.
   - Option B: queue-based job system.
 
 Minimum viable scheduling:
+
 1. Store schedule config.
 2. Provide internal/admin endpoint to:
    - Create the next run.
@@ -450,11 +492,13 @@ Minimum viable scheduling:
 ## 11. Security, Privacy, and Multi-Tenancy
 
 ### 11.1 Security basics
+
 - All endpoints require auth (except explicitly public reads).
 - Enforce group-scoped authorization in services, not only routes.
 - Log structured events, but avoid sensitive payloads.
 
 ### 11.2 Public vs private groups
+
 - Public groups:
   - Discoverable.
   - Joinable without invite.
@@ -463,6 +507,7 @@ Minimum viable scheduling:
   - Join requires invite or admin action.
 
 ### 11.3 Integrator safety
+
 - API tokens must be hashed at rest.
 - Support token rotation.
 - Webhooks signed with HMAC.
@@ -472,6 +517,7 @@ Minimum viable scheduling:
 ## 12. Observability & Operational Concerns
 
 Must-haves early:
+
 - Correlation/request IDs.
 - Structured logs at service boundaries.
 - Audit-style events for:
@@ -480,6 +526,7 @@ Must-haves early:
   - Membership changes.
 
 Nice-to-have:
+
 - Basic metrics:
   - Runs executed.
   - Match success rate.
@@ -490,17 +537,19 @@ Nice-to-have:
 ## 13. Proposed Initial Milestones
 
 ### Milestone A: API foundation
+
 - Versioned route structure.
 - Auth + authorization helpers.
 - Consistent validation and error envelope.
 
 ### Milestone B: Core lunch lottery
+
 - Groups + memberships.
 - Lotteries + runs + participations.
 - Matching execution.
 
 ### Milestone C: Calendar + integrator features
+
 - ICS artifacts.
 - Webhooks.
 - Documentation and examples.
-

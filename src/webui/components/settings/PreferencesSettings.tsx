@@ -1,11 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-
 import type { ApiError } from '@/webui/api/client';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
 import { updateUserProfile } from '@/webui/mutations/user';
+import { useMemo, useState } from 'react';
 
 const selectStyles =
   'w-full rounded-[var(--radius-md)] border border-[color:rgba(20,18,21,0.2)] bg-white/80 px-4 py-2 text-sm text-[color:var(--ink)] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--haze)]';
@@ -79,11 +78,11 @@ export function PreferencesSettings() {
   return (
     <div className="grid gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--moss)]">
+        <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">
           Preferences
         </p>
         <h2 className="text-2xl font-semibold">Lunch &amp; scheduling</h2>
-        <p className="mt-1 text-sm text-[color:rgba(20,18,21,0.7)]">
+        <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
           Capture preferred lunch times, days, and the default lottery cadence.
         </p>
       </div>
@@ -121,7 +120,7 @@ export function PreferencesSettings() {
             {dayOptions.map((day) => (
               <label
                 key={day.value}
-                className="flex items-center gap-2 rounded-full border border-[color:rgba(20,18,21,0.2)] bg-white/70 px-3 py-1.5 text-xs"
+                className="flex items-center gap-2 rounded-full border border-[rgba(20,18,21,0.2)] bg-white/70 px-3 py-1.5 text-xs"
               >
                 <input
                   type="checkbox"
@@ -136,7 +135,11 @@ export function PreferencesSettings() {
       </div>
 
       <div>
-        <Button variant="ghost" onClick={handleSave} disabled={status === 'saving'}>
+        <Button
+          variant="ghost"
+          onClick={handleSave}
+          disabled={status === 'saving'}
+        >
           {status === 'saving' ? 'Saving...' : 'Save preferences'}
         </Button>
       </div>

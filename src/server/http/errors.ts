@@ -11,7 +11,12 @@ export class HttpError extends Error {
   code: ErrorCode;
   details?: unknown;
 
-  constructor(status: number, code: ErrorCode, message: string, details?: unknown) {
+  constructor(
+    status: number,
+    code: ErrorCode,
+    message: string,
+    details?: unknown,
+  ) {
     super(message);
     this.status = status;
     this.code = code;
@@ -34,4 +39,3 @@ export function notFound(message = 'Resource not found') {
 export function badRequest(message = 'Invalid request', details?: unknown) {
   return new HttpError(400, 'bad_request', message, details);
 }
-

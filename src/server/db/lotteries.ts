@@ -1,9 +1,14 @@
+import { prisma } from '@/lib/prisma';
+import type {
+  CreateLotteryInput,
+  UpdateLotteryInput,
+} from '@/server/schemas/lotteries';
 import type { Prisma } from '@prisma/client';
 
-import { prisma } from '@/lib/prisma';
-import type { CreateLotteryInput, UpdateLotteryInput } from '@/server/schemas/lotteries';
-
-export function createLotteryForGroup(groupId: string, input: CreateLotteryInput) {
+export function createLotteryForGroup(
+  groupId: string,
+  input: CreateLotteryInput,
+) {
   return prisma.lottery.create({
     data: {
       groupId,
@@ -30,7 +35,10 @@ export function getLotteryById(lotteryId: string) {
   });
 }
 
-export function updateLotteryById(lotteryId: string, input: UpdateLotteryInput) {
+export function updateLotteryById(
+  lotteryId: string,
+  input: UpdateLotteryInput,
+) {
   return prisma.lottery.update({
     where: { id: lotteryId },
     data: {

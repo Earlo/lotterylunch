@@ -1,7 +1,6 @@
-import { MembershipStatus } from '@prisma/client';
-
 import { prisma } from '@/lib/prisma';
 import type { UpdateGroupInput } from '@/server/schemas/groups';
+import { MembershipStatus } from '@prisma/client';
 
 export function listActiveGroupsForUser(userId: string) {
   return prisma.membership.findMany({

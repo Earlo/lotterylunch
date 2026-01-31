@@ -1,8 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-
 import { authClient } from '@/lib/auth-client';
+import type { ReactNode } from 'react';
 
 export function ClientAuthGate({
   children,
@@ -16,16 +15,14 @@ export function ClientAuthGate({
   if (isPending) {
     return (
       fallback ?? (
-        <p className="text-sm text-[color:rgba(20,18,21,0.6)]">
-          Loading session...
-        </p>
+        <p className="text-sm text-[rgba(20,18,21,0.6)]">Loading session...</p>
       )
     );
   }
 
   if (!session?.user?.id) {
     return (
-      <p className="text-sm text-[color:rgba(20,18,21,0.6)]">
+      <p className="text-sm text-[rgba(20,18,21,0.6)]">
         Sign in to access this section.
       </p>
     );

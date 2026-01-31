@@ -1,7 +1,7 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import test from 'node:test';
 
 const root = process.cwd();
 
@@ -16,6 +16,10 @@ const files = [
   'src/webui/components/layout/PortalHeaderActions.tsx',
   'src/webui/components/layout/AppShell.tsx',
   'src/webui/components/groups/GroupsClient.tsx',
+  'src/webui/components/groups/GroupDetailClient.tsx',
+  'src/webui/components/lotteries/LotteryDetailClient.tsx',
+  'src/webui/components/runs/RunDetailClient.tsx',
+  'src/webui/components/settings/AvailabilitySettings.tsx',
   'src/webui/components/ui/Button.tsx',
   'src/webui/components/ui/Notice.tsx',
   'src/webui/api/client.ts',

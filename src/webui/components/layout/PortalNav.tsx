@@ -13,7 +13,7 @@ export function PortalNav() {
         <Link
           key={item.href}
           href={item.href}
-          className="rounded-full border border-transparent px-3 py-1 text-[color:rgba(20,18,21,0.7)] transition hover:border-[color:rgba(20,18,21,0.15)] hover:text-[color:var(--ink)]"
+          className="rounded-full border border-transparent px-3 py-1 text-[rgba(20,18,21,0.7)] transition hover:border-[rgba(20,18,21,0.15)] hover:text-(--ink)"
         >
           {item.label}
         </Link>

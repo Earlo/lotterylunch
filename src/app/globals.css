@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --ink: #141215;
@@ -10,8 +10,9 @@
   --radius-lg: 18px;
   --radius-md: 12px;
   --shadow-lift: 0 18px 45px rgba(20, 18, 21, 0.18);
-  --font-body: "Space Grotesk", "Avenir Next", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Fraunces", "Iowan Old Style", "Georgia", serif;
+  --font-body:
+    'Space Grotesk', 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Georgia', serif;
 }
 
 * {
@@ -22,7 +23,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--haze);
-  font-family: var(--font-body, "Space Grotesk", sans-serif);
+  font-family: var(--font-body, 'Space Grotesk', sans-serif);
   text-rendering: optimizeLegibility;
 }
 
@@ -32,7 +33,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-display, "Fraunces", serif);
+  font-family: var(--font-display, 'Fraunces', serif);
   letter-spacing: -0.02em;
 }
 

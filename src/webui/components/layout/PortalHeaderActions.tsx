@@ -1,7 +1,6 @@
-import Link from 'next/link';
-
 import AuthButton from '@/webui/components/auth/AuthButton';
 import { Button } from '@/webui/components/ui/Button';
+import Link from 'next/link';
 
 export function PortalHeaderActions() {
   return (

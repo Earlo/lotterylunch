@@ -1,6 +1,5 @@
-import { ZodError } from 'zod';
-
 import { badRequest, HttpError } from '@/server/http/errors';
+import { ZodError } from 'zod';
 
 type ErrorEnvelope = {
   error: {
@@ -51,4 +50,3 @@ function normalizeError(err: unknown): HttpError {
   console.error('[http] unhandled error', err);
   return new HttpError(500, 'internal_error', 'Something went wrong');
 }
-

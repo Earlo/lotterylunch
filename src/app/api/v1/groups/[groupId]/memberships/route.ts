@@ -1,7 +1,14 @@
 import { requireUser } from '@/server/auth/session';
 import { handleRoute } from '@/server/http/responses';
-import { groupIdParamsSchema, createMembershipSchema } from '@/server/schemas/memberships';
-import { inviteToGroup, joinGroup, listMemberships } from '@/server/services/memberships';
+import {
+  createMembershipSchema,
+  groupIdParamsSchema,
+} from '@/server/schemas/memberships';
+import {
+  inviteToGroup,
+  joinGroup,
+  listMemberships,
+} from '@/server/services/memberships';
 
 type Params = {
   params: Promise<{

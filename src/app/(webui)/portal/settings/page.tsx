@@ -1,9 +1,10 @@
 import { requirePortalSession } from '@/webui/auth';
 import { AppShell } from '@/webui/components/layout/AppShell';
-import { Card } from '@/webui/components/ui/Card';
 import { AccountSettings } from '@/webui/components/settings/AccountSettings';
-import { PreferencesSettings } from '@/webui/components/settings/PreferencesSettings';
+import { AvailabilitySettings } from '@/webui/components/settings/AvailabilitySettings';
 import { CalendarSettings } from '@/webui/components/settings/CalendarSettings';
+import { PreferencesSettings } from '@/webui/components/settings/PreferencesSettings';
+import { Card } from '@/webui/components/ui/Card';
 
 export default async function SettingsPage() {
   await requirePortalSession('/portal/settings');
@@ -22,6 +23,9 @@ export default async function SettingsPage() {
         </Card>
         <Card title="Calendar connections">
           <CalendarSettings />
+        </Card>
+        <Card title="Availability">
+          <AvailabilitySettings />
         </Card>
       </div>
     </AppShell>
