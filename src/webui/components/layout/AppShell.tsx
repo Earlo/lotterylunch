@@ -1,16 +1,19 @@
 import type { ReactNode } from 'react';
 
+import { PortalHeaderActions } from '@/webui/components/layout/PortalHeaderActions';
 import { PortalNav } from '@/webui/components/layout/PortalNav';
 
 export function AppShell({
   title,
   description,
   actions,
+  showAuthActions = true,
   children,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  showAuthActions?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -31,7 +34,10 @@ export function AppShell({
               </p>
             ) : null}
           </div>
-          {actions ? <div className="flex gap-3">{actions}</div> : null}
+          <div className="flex flex-wrap items-center gap-3">
+            {actions}
+            {showAuthActions ? <PortalHeaderActions /> : null}
+          </div>
         </div>
         <PortalNav />
       </header>

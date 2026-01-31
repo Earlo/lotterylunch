@@ -1,7 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useSession } from 'next-auth/react';
+
+import { authClient } from '@/lib/auth-client';
 
 export function ClientAuthGate({
   children,
@@ -10,13 +11,19 @@ export function ClientAuthGate({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  const { status } = useSession();
+  const { data: session, isPending } = authClient.useSession();
 
-  if (status === 'loading') {
-    return fallback ?? <p className="text-sm text-[color:rgba(20,18,21,0.6)]">Loading session...</p>;
+  if (isPending) {
+    return (
+      fallback ?? (
+        <p className="text-sm text-[color:rgba(20,18,21,0.6)]">
+          Loading session...
+        </p>
+      )
+    );
   }
 
-  if (status === 'unauthenticated') {
+  if (!session?.user?.id) {
     return (
       <p className="text-sm text-[color:rgba(20,18,21,0.6)]">
         Sign in to access this section.

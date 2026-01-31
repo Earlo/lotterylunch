@@ -10,6 +10,8 @@
   --radius-lg: 18px;
   --radius-md: 12px;
   --shadow-lift: 0 18px 45px rgba(20, 18, 21, 0.18);
+  --font-body: "Space Grotesk", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Fraunces", "Iowan Old Style", "Georgia", serif;
 }
 
 * {

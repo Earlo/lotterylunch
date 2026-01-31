@@ -161,22 +161,23 @@ This task list is organized to keep the API as the #1 priority and the portal as
    - [x] Smoke tests for core pages.
    - [x] API contract mocks for UI flows.
 8. Add missing portal capabilities:
-   - [ ] Add a logout affordance in the portal shell.
-   - [ ] Add account settings UI (profile, timezone, avatar).
-   - [ ] Add group creation and join flows (create group, join by group ID or invite).
-   - [ ] Add calendar integration management (connect/disconnect providers, ICS download).
-   - [ ] Add lunch time preferences and lottery frequency controls.
-   - [ ] Add area/location field to preferences and surface in profile.
+   - [x] Add a logout affordance in the portal shell.
+   - [x] Add account settings UI (profile, timezone, avatar).
+   - [x] Add group creation and join flows (create group, join by group ID or invite).
+   - [x] Add calendar integration management (connect/disconnect providers, ICS download).
+   - [x] Add lunch time preferences and lottery frequency controls.
+   - [x] Add area/location field to preferences and surface in profile.
 
 ## Phase 8.6: Auth Migration (portal + API)
 
 1. Migrate from NextAuth to Better Auth:
-   - [ ] Inventory current NextAuth usage and auth dependencies.
-   - [ ] Add Better Auth config and providers.
-   - [ ] Update API auth helpers and session retrieval.
-   - [ ] Update web UI auth components and guards.
-   - [ ] Update environment variables and secrets.
-   - [ ] Remove NextAuth dependencies and routes after cutover.
+   - [x] Inventory current NextAuth usage and auth dependencies.
+   - [x] Add Better Auth config and providers.
+   - [x] Update API auth helpers and session retrieval.
+   - [x] Update web UI auth components and guards.
+   - [x] Update environment variables and secrets.
+   - [ ] Align Prisma auth models with Better Auth requirements + migrate data.
+   - [x] Remove NextAuth dependencies and routes after cutover.
 
 ## Phase 9: API Quality Bar (must-have for API-first)
 
@@ -190,6 +191,28 @@ This task list is organized to keep the API as the #1 priority and the portal as
    - [x] Basic rate limiting added in `src/middleware.ts`.
 4. Add audit-friendly logs around critical transitions.
    - [x] Added structured logs in run execution/cancel and membership changes.
+
+## Missing Features Snapshot (as of now)
+
+### API (still missing)
+- [ ] Calendar artifacts API (ICS generation + artifact CRUD).
+- [ ] Calendar connections API (connect/disconnect providers, status).
+- [ ] Availability slots API (lunch time windows / recurring availability).
+- [ ] API tokens + auth middleware.
+- [ ] Webhooks (endpoints, delivery, retries, signatures).
+- [ ] Membership invite tokens + invite-accept flow.
+- [ ] Contract tests for status codes + error envelope.
+- [ ] Authorization tests for membership + group role rules.
+
+### Web UI (still missing)
+- [ ] Group invite flow (send invite, join via invite token).
+- [ ] Membership management UI (roles, remove members).
+- [ ] Lottery creation/editing UI (scheduleJson, size, repeat window).
+- [ ] Run management UI (open/close enrollment, execute/cancel).
+- [ ] Participation confirmation UI.
+- [ ] Matches view + calendar artifact download.
+- [ ] Calendar connections UI backed by real API (not placeholder).
+- [ ] Availability / schedule editor for users and groups.
 
 ## Suggested First Slice (high-leverage)
 

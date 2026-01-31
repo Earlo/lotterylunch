@@ -81,12 +81,16 @@ enum EventStatus {
 }
 
 model User {
-  id                  String               @id @default(uuid()) @db.Uuid
+  id                  String               @id @default(cuid())
   email               String               @unique
-  emailVerified       DateTime?
+  emailVerified       Boolean              @default(false)
   name                String?
   timezone            String               @default("UTC")
   image               String?
+  area                String?
+  lunchTime           String?
+  preferredDays       String[]             @default([])
+  lotteryFrequency    String?
   authProvider        String?
   memberships         Membership[]
   participations      Participation[]
@@ -106,10 +110,10 @@ model Group {
   description       String?
   visibility        Visibility         @default(open)
   groupVisibility   GroupVisibility    @default(open)
-  ownerId           String             @db.Uuid
+  ownerId           String
   defaultGroupSize  Int                @default(2)
   timezone          String             @default("UTC")
-  createdById       String?            @db.Uuid
+  createdById       String?
   owner             User               @relation("GroupOwner", fields: [ownerId], references: [id])
   memberships       Membership[]
   matches           Match[]
@@ -121,7 +125,7 @@ model Group {
 
 model Membership {
   id       String           @id @default(uuid()) @db.Uuid
-  userId   String           @db.Uuid
+  userId   String
   groupId  String           @db.Uuid
   role     Role             @default(member)
   groupRole GroupRole       @default(member)
@@ -137,7 +141,7 @@ model Membership {
 
 model CalendarConnection {
   id          String           @id @default(uuid()) @db.Uuid
-  userId      String           @db.Uuid
+  userId      String
   provider    CalendarProvider
   status      String
   oauthTokens Json
@@ -146,7 +150,7 @@ model CalendarConnection {
 
 model AvailabilitySlot {
   id            String   @id @default(uuid()) @db.Uuid
-  userId        String   @db.Uuid
+  userId        String
   groupId       String?  @db.Uuid
   startAt       DateTime
   endAt         DateTime
@@ -184,34 +188,34 @@ model LunchEvent {
 }
 
 model Account {
-  userId            String  @db.Uuid
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+  id                    String   @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([provider, providerAccountId])
+  @@unique([providerId, accountId])
 }
 
 model Session {
-  sessionToken String   @unique
-  userId       String   @db.Uuid
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -222,10 +226,21 @@ model VerificationToken {
   @@id([identifier, token])
 }
 
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
 // Optional for WebAuthn support
 model Authenticator {
   credentialID         String  @unique
-  userId               String  @db.Uuid
+  userId               String
   providerAccountId    String
   credentialPublicKey  String
   counter              Int
@@ -278,7 +293,7 @@ model LotteryRun {
 model Participation {
   id          String              @id @default(uuid()) @db.Uuid
   runId       String              @db.Uuid
-  userId      String              @db.Uuid
+  userId      String
   status      ParticipationStatus @default(pending)
   respondedAt DateTime?
   createdAt   DateTime            @default(now())

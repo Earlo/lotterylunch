@@ -3,6 +3,7 @@ import Link from 'next/link';
 const navItems = [
   { label: 'Overview', href: '/portal' },
   { label: 'Groups', href: '/portal/groups' },
+  { label: 'Settings', href: '/portal/settings' },
 ];
 
 export function PortalNav() {

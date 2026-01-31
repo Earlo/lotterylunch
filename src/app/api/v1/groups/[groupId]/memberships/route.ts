@@ -4,15 +4,16 @@ import { groupIdParamsSchema, createMembershipSchema } from '@/server/schemas/me
 import { inviteToGroup, joinGroup, listMemberships } from '@/server/services/memberships';
 
 type Params = {
-  params: {
+  params: Promise<{
     groupId: string;
-  };
+  }>;
 };
 
 export async function GET(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId } = groupIdParamsSchema.parse(params);
+    const resolvedParams = await params;
+    const { groupId } = groupIdParamsSchema.parse(resolvedParams);
 
     return listMemberships(groupId, userId);
   });
@@ -21,7 +22,8 @@ export async function GET(_req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId } = groupIdParamsSchema.parse(params);
+    const resolvedParams = await params;
+    const { groupId } = groupIdParamsSchema.parse(resolvedParams);
     const body = await req.json();
     const input = createMembershipSchema.parse(body);
 

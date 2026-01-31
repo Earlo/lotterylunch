@@ -1,8 +1,13 @@
+import { headers } from 'next/headers';
+
 import { auth } from '@/lib/auth';
 import { unauthorized } from '@/server/http/errors';
 
 export async function requireUser() {
-  const session = await auth();
+  const headerList = await headers();
+  const session = await auth.api.getSession({
+    headers: Object.fromEntries(headerList.entries()),
+  });
   const userId = session?.user?.id;
 
   if (!userId) {
@@ -14,4 +19,3 @@ export async function requireUser() {
     userId,
   };
 }
-
