@@ -15,7 +15,8 @@ import { createCalendarArtifact } from '@/webui/mutations/calendar';
 import { fetchCalendarConnections } from '@/webui/queries/calendar';
 import { updateParticipation } from '@/webui/mutations/participations';
 import { fetchRun } from '@/webui/queries/lotteries';
-import { useEffect, useMemo, useState } from 'react';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
+import { useMemo, useState } from 'react';
 
 export function RunDetailClient({ runId }: { runId: string }) {
   const { data: session } = authClient.useSession();
@@ -23,49 +24,34 @@ export function RunDetailClient({ runId }: { runId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [connections, setConnections] = useState<CalendarConnection[]>([]);
 
-  const loadRun = async () => {
+  const loadRun = async (opts?: { isCancelled?: () => boolean }) => {
+    const isCancelled = opts?.isCancelled ?? (() => false);
     try {
       const data = await fetchRun(runId);
+      if (isCancelled()) return;
       setRun(data);
       setError(null);
     } catch (err) {
+      if (isCancelled()) return;
       const apiError = err as ApiError;
       setError(apiError.message ?? 'Unable to load run.');
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchRun(runId)
-      .then((data) => {
-        if (cancelled) return;
-        setRun(data);
-        setError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        const apiError = err as ApiError;
-        setError(apiError.message ?? 'Unable to load run.');
-      });
-    return () => {
-      cancelled = true;
-    };
+  useCancelableEffect((isCancelled) => {
+    loadRun({ isCancelled });
   }, [runId]);
 
-  useEffect(() => {
-    let cancelled = false;
+  useCancelableEffect((isCancelled) => {
     fetchCalendarConnections()
       .then((data) => {
-        if (cancelled) return;
+        if (isCancelled()) return;
         setConnections(data);
       })
       .catch(() => {
-        if (cancelled) return;
+        if (isCancelled()) return;
         setConnections([]);
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const myParticipation = useMemo(() => {
@@ -92,7 +78,11 @@ export function RunDetailClient({ runId }: { runId: string }) {
     }
   };
 
-  const handleArtifact = async (match: Match) => {
+  const handleArtifact = async (match: Match, provider?: 'google') => {
+    const errorMessage =
+      provider === 'google'
+        ? 'Unable to create Google event.'
+        : 'Unable to create calendar artifact.';
     try {
       const now = new Date();
       const end = new Date(now.getTime() + 60 * 60 * 1000);
@@ -100,28 +90,12 @@ export function RunDetailClient({ runId }: { runId: string }) {
         title: 'Lottery Lunch',
         startsAt: now.toISOString(),
         endsAt: end.toISOString(),
+        ...(provider ? { provider } : {}),
       });
       await loadRun();
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to create calendar artifact.');
-    }
-  };
-
-  const handleGoogleEvent = async (match: Match) => {
-    try {
-      const now = new Date();
-      const end = new Date(now.getTime() + 60 * 60 * 1000);
-      await createCalendarArtifact(match.id, {
-        provider: 'google',
-        title: 'Lottery Lunch',
-        startsAt: now.toISOString(),
-        endsAt: end.toISOString(),
-      });
-      await loadRun();
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to create Google event.');
+      setError(apiError.message ?? errorMessage);
     }
   };
 
@@ -182,7 +156,7 @@ export function RunDetailClient({ runId }: { runId: string }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleGoogleEvent(match)}
+                    onClick={() => handleArtifact(match, 'google')}
                   >
                     Add to Google
                   </Button>

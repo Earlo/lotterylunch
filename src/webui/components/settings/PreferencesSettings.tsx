@@ -3,11 +3,11 @@
 import type { ApiError } from '@/webui/api/client';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
+import { selectBaseStyles } from '@/webui/components/ui/formStyles';
 import { updateUserProfile } from '@/webui/mutations/user';
 import { useMemo, useState } from 'react';
 
-const selectStyles =
-  'w-full rounded-[var(--radius-md)] border border-[color:rgba(20,18,21,0.2)] bg-white/80 px-4 py-2 text-sm text-[color:var(--ink)] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--haze)]';
+const selectStyles = `${selectBaseStyles} px-4 py-2 text-sm`;
 
 const dayOptions = [
   { label: 'Mon', value: 'mon' },

@@ -30,6 +30,10 @@ function isRateLimited(req: NextRequest) {
 }
 
 export function middleware(req: NextRequest) {
+  if (process.env.NODE_ENV !== 'production') {
+    return NextResponse.next();
+  }
+
   if (isRateLimited(req)) {
     return NextResponse.json(
       {

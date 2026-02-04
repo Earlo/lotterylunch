@@ -20,11 +20,7 @@ export async function upsertAvailability(
   );
   const includesUngrouped = slots.some((slot) => !slot.groupId);
 
-  if (groupIds.size === 0) {
-    await prisma.availabilitySlot.deleteMany({
-      where: { userId, groupId: null },
-    });
-  } else {
+  if (groupIds.size > 0) {
     await prisma.availabilitySlot.deleteMany({
       where: { userId, groupId: { in: Array.from(groupIds) } },
     });

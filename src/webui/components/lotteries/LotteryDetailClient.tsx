@@ -7,7 +7,8 @@ import { Card } from '@/webui/components/ui/Card';
 import { Notice } from '@/webui/components/ui/Notice';
 import { cancelRun, createRun, executeRun } from '@/webui/mutations/lotteries';
 import { fetchLottery, fetchRuns } from '@/webui/queries/lotteries';
-import { useEffect, useState } from 'react';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
+import { useState } from 'react';
 
 export function LotteryDetailClient({ lotteryId }: { lotteryId: string }) {
   const [lottery, setLottery] = useState<Lottery | null>(null);
@@ -17,38 +18,26 @@ export function LotteryDetailClient({ lotteryId }: { lotteryId: string }) {
   const [closesAt, setClosesAt] = useState('');
   const [executesAt, setExecutesAt] = useState('');
 
-  const loadAll = async () => {
+  const loadAll = async (opts?: { isCancelled?: () => boolean }) => {
+    const isCancelled = opts?.isCancelled ?? (() => false);
     try {
       const [lotteryData, runsData] = await Promise.all([
         fetchLottery(lotteryId),
         fetchRuns(lotteryId),
       ]);
+      if (isCancelled()) return;
       setLottery(lotteryData);
       setRuns(runsData);
       setError(null);
     } catch (err) {
+      if (isCancelled()) return;
       const apiError = err as ApiError;
       setError(apiError.message ?? 'Unable to load lottery data.');
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([fetchLottery(lotteryId), fetchRuns(lotteryId)])
-      .then(([lotteryData, runsData]) => {
-        if (cancelled) return;
-        setLottery(lotteryData);
-        setRuns(runsData);
-        setError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        const apiError = err as ApiError;
-        setError(apiError.message ?? 'Unable to load lottery data.');
-      });
-    return () => {
-      cancelled = true;
-    };
+  useCancelableEffect((isCancelled) => {
+    loadAll({ isCancelled });
   }, [lotteryId]);
 
   const handleCreateRun = async () => {

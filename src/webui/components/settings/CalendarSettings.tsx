@@ -4,13 +4,15 @@ import type { ApiError } from '@/webui/api/client';
 import type { CalendarConnection } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import {
   createCalendarConnection,
   deleteCalendarConnection,
   startGoogleCalendarConnection,
 } from '@/webui/mutations/calendar';
 import { fetchCalendarConnections } from '@/webui/queries/calendar';
-import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 
 const providers: Array<{ id: CalendarConnection['provider']; label: string }> =
   [
@@ -24,39 +26,34 @@ export function CalendarSettings() {
   const [connections, setConnections] = useState<CalendarConnection[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const calendarStatus = searchParams.get('calendar');
+  const notice =
+    calendarStatus === 'connected'
+      ? 'Google Calendar connected.'
+      : calendarStatus === 'error'
+        ? 'Google Calendar connection failed.'
+        : null;
 
-  const loadConnections = async () => {
+  const loadConnections = async (opts?: { isCancelled?: () => boolean }) => {
+    const isCancelled = opts?.isCancelled ?? (() => false);
     setStatus('loading');
     try {
       const data = await fetchCalendarConnections();
+      if (isCancelled()) return;
       setConnections(data);
       setError(null);
+      setStatus('idle');
     } catch (err) {
+      if (isCancelled()) return;
       const apiError = err as ApiError;
       setError(apiError.message ?? 'Unable to load connections.');
       setStatus('error');
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchCalendarConnections()
-      .then((data) => {
-        if (cancelled) return;
-        setConnections(data);
-        setError(null);
-        setStatus('idle');
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        const apiError = err as ApiError;
-        setError(apiError.message ?? 'Unable to load connections.');
-        setStatus('error');
-      });
-    return () => {
-      cancelled = true;
-    };
+  useCancelableEffect((isCancelled) => {
+    loadConnections({ isCancelled });
   }, []);
 
   const handleConnect = async (provider: CalendarConnection['provider']) => {
@@ -84,16 +81,6 @@ export function CalendarSettings() {
       setError(apiError.message ?? 'Unable to remove connection.');
     }
   };
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const calendarStatus = params.get('calendar');
-    if (calendarStatus === 'connected') {
-      setNotice('Google Calendar connected.');
-    } else if (calendarStatus === 'error') {
-      setNotice('Google Calendar connection failed.');
-    }
-  }, []);
 
   return (
     <div className="grid gap-4">

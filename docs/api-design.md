@@ -7,7 +7,7 @@ LotteryLunch is an API-first service for organizing "lottery lunches" (randomize
 Key goals:
 
 - Provide a generic, well-structured API for organizing recurring randomized lunches.
-- Support both public groups (open participation) and personal/private groups (invite-only).
+- Support both open groups (open participation) and invite-only groups.
 - Support calendar invites and lifecycle events (schedule, confirm, cancel, reschedule).
 - Enable integrations with other platforms/services via a clear auth and webhook story.
 
@@ -23,7 +23,7 @@ Non-goals (initially):
 ### 2.1 Core capabilities
 
 1. Users can create and join groups.
-2. Groups can be public or private.
+2. Groups can be open or invite-only.
 3. A group can run "lotteries" on a schedule (e.g., weekly).
 4. Each lottery run generates matches (pairs or small groups).
 5. Users can confirm participation per run.
@@ -81,7 +81,7 @@ This keeps the API stable and makes the portal just another client.
    - A person authenticated via OAuth (NextAuth).
 2. Group
    - A collection of users with a purpose and configuration.
-   - Visibility: `public` or `private`.
+   - Visibility: `open` or `invite_only`.
 3. Membership
    - A user’s relationship to a group.
    - Roles: `owner`, `admin`, `member`.
@@ -200,14 +200,14 @@ Group fields:
 
 - `name`
 - `description`
-- `visibility` (`public` | `private`)
+- `visibility` (`open` | `invite_only`)
 - `defaultGroupSize`
 - `timezone`
 
 #### Memberships
 
 - `POST /api/v1/groups/:groupId/memberships`
-  - Join public group OR invite user to private group (role-gated).
+  - Join open group OR invite user to invite-only group (role-gated).
 - `GET /api/v1/groups/:groupId/memberships`
 - `PATCH /api/v1/groups/:groupId/memberships/:membershipId`
   - Update role/status (role-gated).
@@ -331,7 +331,7 @@ model Group {
   id               String        @id @default(cuid())
   name             String
   description      String?
-  visibility       GroupVisibility @default(private)
+  visibility       GroupVisibility @default(invite_only)
   defaultGroupSize Int           @default(2)
   timezone         String        @default("UTC")
   createdById      String
@@ -497,12 +497,12 @@ Minimum viable scheduling:
 - Enforce group-scoped authorization in services, not only routes.
 - Log structured events, but avoid sensitive payloads.
 
-### 11.2 Public vs private groups
+### 11.2 Open vs invite-only groups
 
-- Public groups:
+- Open groups:
   - Discoverable.
   - Joinable without invite.
-- Private groups:
+- Invite-only groups:
   - Not discoverable.
   - Join requires invite or admin action.
 

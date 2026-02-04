@@ -1,7 +1,7 @@
 export type GroupSummary = {
   id: string;
   name: string;
-  visibility: 'public' | 'private';
+  visibility: 'open' | 'invite_only';
   createdAt: string;
 };
 

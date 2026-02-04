@@ -3,18 +3,13 @@ import {
   requireGroupMembership,
   requireGroupRole,
 } from '@/server/auth/authorization';
+import { getGroupById } from '@/server/db/groups';
 import { badRequest, forbidden, notFound } from '@/server/http/errors';
 import type {
   CreateMembershipInput,
   UpdateMembershipInput,
 } from '@/server/schemas/memberships';
 import { MembershipStatus, Role, Visibility } from '@prisma/client';
-
-async function getGroup(groupId: string) {
-  const group = await prisma.group.findUnique({ where: { id: groupId } });
-  if (!group) throw notFound('Group not found');
-  return group;
-}
 
 export async function listMemberships(groupId: string, userId: string) {
   await requireGroupMembership(groupId, userId);
@@ -41,7 +36,8 @@ export async function listMemberships(groupId: string, userId: string) {
 }
 
 export async function joinGroup(groupId: string, userId: string) {
-  const group = await getGroup(groupId);
+  const group = await getGroupById(groupId);
+  if (!group) throw notFound('Group not found');
 
   if (group.visibility === Visibility.invite_only) {
     throw forbidden('This group requires an invite');
@@ -79,7 +75,8 @@ export async function inviteToGroup(
 
   await requireGroupRole(groupId, actorId, [Role.owner, Role.admin]);
 
-  const group = await getGroup(groupId);
+  const group = await getGroupById(groupId);
+  if (!group) throw notFound('Group not found');
 
   const membership = await prisma.membership.upsert({
     where: {

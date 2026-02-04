@@ -9,7 +9,7 @@ import { Notice } from '@/webui/components/ui/Notice';
 import { createGroup, joinGroup } from '@/webui/mutations/groups';
 import { fetchGroups } from '@/webui/queries/groups';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export function GroupsClient() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -23,8 +23,6 @@ export function GroupsClient() {
   const [busy, setBusy] = useState(false);
 
   const hasGroups = groups.length > 0;
-
-  const grouped = useMemo(() => groups, [groups]);
 
   const loadGroups = async () => {
     setLoading(true);
@@ -176,14 +174,14 @@ export function GroupsClient() {
           <p className="text-sm text-[rgba(20,18,21,0.6)]">Loading groups...</p>
         ) : hasGroups ? (
           <ul className="grid gap-3">
-            {grouped.map((group) => (
+            {groups.map((group) => (
               <li
                 key={group.id}
                 className="rounded-md border border-[rgba(20,18,21,0.12)] bg-white/70 px-4 py-3"
               >
                 <Link
                   href={`/portal/groups/${group.id}`}
-                  className="text-sm font-semibold text-[color:var(--ink)] underline-offset-4 hover:underline"
+                  className="text-sm font-semibold text-(--ink) underline-offset-4 hover:underline"
                 >
                   {group.name}
                 </Link>

@@ -4,12 +4,13 @@ import type { ApiError } from '@/webui/api/client';
 import type { AvailabilitySlot } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
+import { selectBaseStyles } from '@/webui/components/ui/formStyles';
 import { updateAvailability } from '@/webui/mutations/calendar';
 import { fetchAvailability } from '@/webui/queries/calendar';
-import { useEffect, useState } from 'react';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
+import { useState } from 'react';
 
-const selectStyles =
-  'w-full rounded-[var(--radius-md)] border border-[color:rgba(20,18,21,0.2)] bg-white/80 px-3 py-2 text-xs text-[color:var(--ink)] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--haze)]';
+const selectStyles = `${selectBaseStyles} px-3 py-2 text-xs`;
 
 export function AvailabilitySettings() {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
@@ -18,24 +19,20 @@ export function AvailabilitySettings() {
   >('loading');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  useCancelableEffect((isCancelled) => {
     fetchAvailability()
       .then((data) => {
-        if (cancelled) return;
+        if (isCancelled()) return;
         setSlots(data);
         setError(null);
         setStatus('idle');
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (isCancelled()) return;
         const apiError = err as ApiError;
         setError(apiError.message ?? 'Unable to load availability.');
         setStatus('error');
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   const addSlot = () => {

@@ -5,7 +5,7 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Phase 0: Align on Scope (short)
 
 1. Confirm v1 requirements:
-   - Public vs private groups.
+   - Open vs invite-only groups.
    - Weekly scheduling.
    - Basic calendar invites via ICS.
    - API tokens + webhooks in v1 or v1.1.
@@ -65,8 +65,8 @@ This task list is organized to keep the API as the #1 priority and the portal as
    - [x] `PATCH /api/v1/groups/:groupId`
    - [x] Membership endpoints under `/api/v1/groups/:groupId/memberships`.
 4. Add authorization tests:
-   - Public join rules.
-   - Private invite rules.
+   - Open join rules.
+   - Invite-only join rules.
    - Role-based updates.
 
 ## Phase 4: Lotteries + Runs + Participation (must-have)

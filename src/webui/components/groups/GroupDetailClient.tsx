@@ -11,6 +11,7 @@ import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
 import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
+import { selectBaseStyles } from '@/webui/components/ui/formStyles';
 import { createGroupInvite } from '@/webui/mutations/invites';
 import { createLottery } from '@/webui/mutations/lotteries';
 import {
@@ -20,12 +21,12 @@ import {
 import { fetchGroup } from '@/webui/queries/groups';
 import { fetchGroupLotteries } from '@/webui/queries/lotteries';
 import { fetchMemberships } from '@/webui/queries/memberships';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { authClient } from '@/lib/auth-client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
-const selectStyles =
-  'w-full rounded-[var(--radius-md)] border border-[color:rgba(20,18,21,0.2)] bg-white/80 px-3 py-2 text-xs text-[color:var(--ink)] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--haze)]';
+const selectStyles = `${selectBaseStyles} px-3 py-2 text-xs`;
 
 export function GroupDetailClient({ groupId }: { groupId: string }) {
   const { data: session } = authClient.useSession();
@@ -45,19 +46,22 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
   const isAdmin =
     myMembership?.role === 'owner' || myMembership?.role === 'admin';
 
-  const loadAll = async () => {
+  const loadAll = async (opts?: { isCancelled?: () => boolean }) => {
+    const isCancelled = opts?.isCancelled ?? (() => false);
     try {
       const [groupData, membershipData, lotteriesData] = await Promise.all([
         fetchGroup(groupId),
         fetchMemberships(groupId),
         fetchGroupLotteries(groupId),
       ]);
+      if (isCancelled()) return;
       setGroup(groupData);
       setMemberships(membershipData);
       setLotteries(lotteriesData);
       setError(null);
       setLoadError(null);
     } catch (err) {
+      if (isCancelled()) return;
       const apiError = err as ApiError;
       const message = apiError.message ?? 'Unable to load group data.';
       setError(message);
@@ -65,31 +69,8 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
     }
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetchGroup(groupId),
-      fetchMemberships(groupId),
-      fetchGroupLotteries(groupId),
-    ])
-      .then(([groupData, membershipData, lotteriesData]) => {
-        if (cancelled) return;
-        setGroup(groupData);
-        setMemberships(membershipData);
-        setLotteries(lotteriesData);
-        setError(null);
-        setLoadError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        const apiError = err as ApiError;
-        const message = apiError.message ?? 'Unable to load group data.';
-        setError(message);
-        setLoadError(message);
-      });
-    return () => {
-      cancelled = true;
-    };
+  useCancelableEffect((isCancelled) => {
+    loadAll({ isCancelled });
   }, [groupId]);
 
   const handleInvite = async () => {
