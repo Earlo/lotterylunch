@@ -8,6 +8,7 @@ import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
 import { createGroup, joinGroup } from '@/webui/mutations/groups';
 import { fetchGroups } from '@/webui/queries/groups';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 export function GroupsClient() {
@@ -180,7 +181,12 @@ export function GroupsClient() {
                 key={group.id}
                 className="rounded-md border border-[rgba(20,18,21,0.12)] bg-white/70 px-4 py-3"
               >
-                <p className="text-sm font-semibold">{group.name}</p>
+                <Link
+                  href={`/portal/groups/${group.id}`}
+                  className="text-sm font-semibold text-[color:var(--ink)] underline-offset-4 hover:underline"
+                >
+                  {group.name}
+                </Link>
                 <p className="text-xs text-[rgba(20,18,21,0.6)]">
                   {group.visibility} ·{' '}
                   {new Date(group.createdAt).toLocaleDateString()}
@@ -195,6 +201,14 @@ export function GroupsClient() {
                     onClick={() => navigator.clipboard?.writeText(group.id)}
                   >
                     Copy ID
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    as={Link}
+                    href={`/portal/groups/${group.id}`}
+                  >
+                    Manage
                   </Button>
                 </div>
               </li>

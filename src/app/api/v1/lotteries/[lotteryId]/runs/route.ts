@@ -4,15 +4,16 @@ import { createRunSchema, lotteryRunParamsSchema } from '@/server/schemas/runs';
 import { createRun, listRuns } from '@/server/services/runs';
 
 type Params = {
-  params: {
+  params: Promise<{
     lotteryId: string;
-  };
+  }>;
 };
 
 export async function GET(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { lotteryId } = lotteryRunParamsSchema.parse(params);
+    const resolved = await params;
+    const { lotteryId } = lotteryRunParamsSchema.parse(resolved);
 
     return listRuns(lotteryId, userId);
   });
@@ -21,7 +22,8 @@ export async function GET(_req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { lotteryId } = lotteryRunParamsSchema.parse(params);
+    const resolved = await params;
+    const { lotteryId } = lotteryRunParamsSchema.parse(resolved);
     const body = await req.json();
     const input = createRunSchema.parse(body);
 

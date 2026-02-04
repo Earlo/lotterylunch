@@ -4,6 +4,20 @@ export type ApiError = {
   details?: unknown;
 };
 
+type ZodIssue = {
+  path?: Array<string | number>;
+  message?: string;
+};
+
+function summarizeIssues(issues?: ZodIssue[]) {
+  if (!issues || issues.length === 0) return null;
+  const summaries = issues.slice(0, 3).map((issue) => {
+    const path = issue.path?.length ? issue.path.join('.') : 'request';
+    return `${path}: ${issue.message ?? 'Invalid value'}`;
+  });
+  return summaries.join('; ');
+}
+
 async function parseError(response: Response): Promise<ApiError> {
   try {
     const payload = (await response.json()) as {
@@ -18,9 +32,18 @@ async function parseError(response: Response): Promise<ApiError> {
       typeof payload?.error === 'object' && payload?.error?.details
         ? payload.error.details
         : payload?.details;
+    const issueSummary = summarizeIssues(
+      (typeof payload?.error === 'object'
+        ? (payload.error?.details as { issues?: ZodIssue[] } | undefined)
+            ?.issues
+        : undefined) ??
+        (payload?.details as { issues?: ZodIssue[] } | undefined)?.issues,
+    );
+    const messageBase = errorMessage ?? response.statusText;
+    const message = issueSummary ? `${messageBase}: ${issueSummary}` : messageBase;
     return {
       status: response.status,
-      message: errorMessage ?? response.statusText,
+      message,
       details: errorDetails,
     };
   } catch {

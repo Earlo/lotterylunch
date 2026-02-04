@@ -10,16 +10,17 @@ import {
 } from '@/server/services/memberships';
 
 type Params = {
-  params: {
+  params: Promise<{
     groupId: string;
     membershipId: string;
-  };
+  }>;
 };
 
 export async function PATCH(req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId, membershipId } = membershipIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { groupId, membershipId } = membershipIdParamsSchema.parse(resolved);
     const body = await req.json();
     const input = updateMembershipSchema.parse(body);
 
@@ -30,7 +31,8 @@ export async function PATCH(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId, membershipId } = membershipIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { groupId, membershipId } = membershipIdParamsSchema.parse(resolved);
 
     return removeMembership(groupId, userId, membershipId);
   });

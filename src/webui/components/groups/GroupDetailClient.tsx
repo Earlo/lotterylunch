@@ -20,6 +20,7 @@ import {
 import { fetchGroup } from '@/webui/queries/groups';
 import { fetchGroupLotteries } from '@/webui/queries/lotteries';
 import { fetchMemberships } from '@/webui/queries/memberships';
+import { authClient } from '@/lib/auth-client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -27,15 +28,22 @@ const selectStyles =
   'w-full rounded-[var(--radius-md)] border border-[color:rgba(20,18,21,0.2)] bg-white/80 px-3 py-2 text-xs text-[color:var(--ink)] shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--haze)]';
 
 export function GroupDetailClient({ groupId }: { groupId: string }) {
+  const { data: session } = authClient.useSession();
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [lotteries, setLotteries] = useState<Lottery[]>([]);
   const [invite, setInvite] = useState<GroupInvite | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [lotteryName, setLotteryName] = useState('');
   const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>(
     'weekly',
   );
+  const myMembership = memberships.find(
+    (member) => member.userId === session?.user?.id,
+  );
+  const isAdmin =
+    myMembership?.role === 'owner' || myMembership?.role === 'admin';
 
   const loadAll = async () => {
     try {
@@ -48,9 +56,12 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
       setMemberships(membershipData);
       setLotteries(lotteriesData);
       setError(null);
+      setLoadError(null);
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to load group data.');
+      const message = apiError.message ?? 'Unable to load group data.';
+      setError(message);
+      setLoadError(message);
     }
   };
 
@@ -67,11 +78,14 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
         setMemberships(membershipData);
         setLotteries(lotteriesData);
         setError(null);
+        setLoadError(null);
       })
       .catch((err) => {
         if (cancelled) return;
         const apiError = err as ApiError;
-        setError(apiError.message ?? 'Unable to load group data.');
+        const message = apiError.message ?? 'Unable to load group data.';
+        setError(message);
+        setLoadError(message);
       });
     return () => {
       cancelled = true;
@@ -85,6 +99,7 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
         maxUses: 5,
       });
       setInvite(created);
+      setError(null);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message ?? 'Unable to create invite.');
@@ -112,13 +127,17 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
   };
 
   const handleCreateLottery = async () => {
-    if (!lotteryName.trim()) return;
+    if (!lotteryName.trim()) {
+      setError('Please name this match cycle before creating it.');
+      return;
+    }
     try {
       await createLottery(groupId, {
         name: lotteryName.trim(),
         scheduleJson: { frequency },
       });
       setLotteryName('');
+      setError(null);
       await loadAll();
     } catch (err) {
       const apiError = err as ApiError;
@@ -141,22 +160,30 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
       </Card>
 
       <Card title="Invite members">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="ghost" onClick={handleInvite}>
-            Create invite
-          </Button>
-          {invite ? (
-            <div className="text-xs text-[rgba(20,18,21,0.7)]">
-              Token: <span className="font-mono">{invite.token}</span>
-            </div>
-          ) : null}
-        </div>
+        {isAdmin ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="ghost" onClick={handleInvite}>
+              Create invite
+            </Button>
+            {invite ? (
+              <div className="text-xs text-[rgba(20,18,21,0.7)]">
+                Token: <span className="font-mono">{invite.token}</span>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-[rgba(20,18,21,0.6)]">
+            Only admins can invite new members.
+          </p>
+        )}
       </Card>
 
       <Card title="Members">
         <div className="grid gap-3">
           {memberships.length === 0 ? (
-            <p className="text-sm text-[rgba(20,18,21,0.6)]">No members yet.</p>
+            <p className="text-sm text-[rgba(20,18,21,0.6)]">
+              {loadError ? 'Unable to load members.' : 'No members yet.'}
+            </p>
           ) : (
             memberships.map((member) => (
               <div
@@ -164,34 +191,40 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[rgba(20,18,21,0.12)] bg-white/70 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-semibold">{member.userId}</p>
+                  <p className="text-sm font-semibold">
+                    {member.user?.name ||
+                      member.user?.email ||
+                      member.userId}
+                  </p>
                   <p className="text-xs text-[rgba(20,18,21,0.6)]">
                     {member.role} · {member.status}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    className={selectStyles}
-                    value={member.role}
-                    onChange={(event) =>
-                      handleRole(
-                        member.id,
-                        event.target.value as Membership['role'],
-                      )
-                    }
-                  >
-                    <option value="owner">Owner</option>
-                    <option value="admin">Admin</option>
-                    <option value="member">Member</option>
-                  </select>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemove(member.id)}
-                  >
-                    Remove
-                  </Button>
-                </div>
+                {isAdmin ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className={selectStyles}
+                      value={member.role}
+                      onChange={(event) =>
+                        handleRole(
+                          member.id,
+                          event.target.value as Membership['role'],
+                        )
+                      }
+                    >
+                      <option value="owner">Owner</option>
+                      <option value="admin">Admin</option>
+                      <option value="member">Member</option>
+                    </select>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemove(member.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ))
           )}
@@ -200,34 +233,40 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
 
       <Card title="Lotteries">
         <div className="grid gap-4">
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-            <Input
-              placeholder="Lottery name"
-              value={lotteryName}
-              onChange={(event) => setLotteryName(event.target.value)}
-            />
-            <select
-              className={selectStyles}
-              value={frequency}
-              onChange={(event) =>
-                setFrequency(
-                  event.target.value as 'weekly' | 'biweekly' | 'monthly',
-                )
-              }
-            >
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Every other week</option>
-              <option value="monthly">Monthly</option>
-            </select>
-            <Button variant="accent" onClick={handleCreateLottery}>
-              Create
-            </Button>
-          </div>
+          {isAdmin ? (
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+              <Input
+                placeholder="Match cycle name (e.g. Weekly lunch)"
+                value={lotteryName}
+                onChange={(event) => setLotteryName(event.target.value)}
+              />
+              <select
+                className={selectStyles}
+                value={frequency}
+                onChange={(event) =>
+                  setFrequency(
+                    event.target.value as 'weekly' | 'biweekly' | 'monthly',
+                  )
+                }
+              >
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Every other week</option>
+                <option value="monthly">Monthly</option>
+              </select>
+              <Button variant="accent" onClick={handleCreateLottery}>
+                Create
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-[rgba(20,18,21,0.6)]">
+              Only admins can create match cycles.
+            </p>
+          )}
 
           <div className="grid gap-2">
             {lotteries.length === 0 ? (
               <p className="text-sm text-[rgba(20,18,21,0.6)]">
-                No lotteries yet.
+                {loadError ? 'Unable to load lotteries.' : 'No lotteries yet.'}
               </p>
             ) : (
               lotteries.map((lottery) => (

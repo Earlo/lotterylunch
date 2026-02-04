@@ -5,16 +5,17 @@ import { LotteryDetailClient } from '@/webui/components/lotteries/LotteryDetailC
 export default async function LotteryDetailPage({
   params,
 }: {
-  params: { lotteryId: string };
+  params: Promise<{ lotteryId: string }>;
 }) {
-  await requirePortalSession(`/portal/lotteries/${params.lotteryId}`);
+  const resolved = await params;
+  await requirePortalSession(`/portal/lotteries/${resolved.lotteryId}`);
 
   return (
     <AppShell
       title="Lottery overview"
       description="Scheduling rules and participation controls for this lottery."
     >
-      <LotteryDetailClient lotteryId={params.lotteryId} />
+      <LotteryDetailClient lotteryId={resolved.lotteryId} />
     </AppShell>
   );
 }

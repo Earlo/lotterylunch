@@ -10,15 +10,16 @@ import {
 } from '@/server/services/participations';
 
 type Params = {
-  params: {
+  params: Promise<{
     runId: string;
-  };
+  }>;
 };
 
 export async function GET(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { runId } = runParticipationParamsSchema.parse(params);
+    const resolved = await params;
+    const { runId } = runParticipationParamsSchema.parse(resolved);
 
     return listParticipations(runId, userId);
   });
@@ -27,7 +28,8 @@ export async function GET(_req: Request, { params }: Params) {
 export async function POST(req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { runId } = runParticipationParamsSchema.parse(params);
+    const resolved = await params;
+    const { runId } = runParticipationParamsSchema.parse(resolved);
     const body = await req.json();
     const input = upsertParticipationSchema.parse(body);
 

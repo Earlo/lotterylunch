@@ -11,15 +11,16 @@ import {
 } from '@/server/services/groups';
 
 type Params = {
-  params: {
+  params: Promise<{
     groupId: string;
-  };
+  }>;
 };
 
 export async function GET(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId } = groupIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { groupId } = groupIdParamsSchema.parse(resolved);
 
     return getGroupForUser(groupId, userId);
   });
@@ -28,7 +29,8 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId } = groupIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { groupId } = groupIdParamsSchema.parse(resolved);
     const body = await req.json();
     const input = updateGroupSchema.parse(body);
 
@@ -39,7 +41,8 @@ export async function PATCH(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { groupId } = groupIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { groupId } = groupIdParamsSchema.parse(resolved);
 
     return deleteGroupForUser(groupId, userId);
   });

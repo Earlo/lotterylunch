@@ -4,15 +4,16 @@ import { runIdParamsSchema } from '@/server/schemas/runs';
 import { executeRun } from '@/server/services/runs';
 
 type Params = {
-  params: {
+  params: Promise<{
     runId: string;
-  };
+  }>;
 };
 
 export async function POST(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { runId } = runIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { runId } = runIdParamsSchema.parse(resolved);
 
     return executeRun(runId, userId);
   });

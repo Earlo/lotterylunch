@@ -5,16 +5,17 @@ import { RunDetailClient } from '@/webui/components/runs/RunDetailClient';
 export default async function RunDetailPage({
   params,
 }: {
-  params: { runId: string };
+  params: Promise<{ runId: string }>;
 }) {
-  await requirePortalSession(`/portal/runs/${params.runId}`);
+  const resolved = await params;
+  await requirePortalSession(`/portal/runs/${resolved.runId}`);
 
   return (
     <AppShell
       title="Run detail"
       description="Run status, matches, and calendar artifacts will appear here."
     >
-      <RunDetailClient runId={params.runId} />
+      <RunDetailClient runId={resolved.runId} />
     </AppShell>
   );
 }

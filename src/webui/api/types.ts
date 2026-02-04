@@ -28,6 +28,11 @@ export type Membership = {
   role: 'owner' | 'admin' | 'member';
   status: 'pending' | 'active' | 'suspended';
   joinedAt: string;
+  user?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+  } | null;
 };
 
 export type GroupInvite = {

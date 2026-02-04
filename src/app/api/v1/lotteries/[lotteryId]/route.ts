@@ -11,15 +11,16 @@ import {
 } from '@/server/services/lotteries';
 
 type Params = {
-  params: {
+  params: Promise<{
     lotteryId: string;
-  };
+  }>;
 };
 
 export async function GET(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { lotteryId } = lotteryIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { lotteryId } = lotteryIdParamsSchema.parse(resolved);
 
     return getLottery(lotteryId, userId);
   });
@@ -28,7 +29,8 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { lotteryId } = lotteryIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { lotteryId } = lotteryIdParamsSchema.parse(resolved);
     const body = await req.json();
     const input = updateLotterySchema.parse(body);
 
@@ -39,7 +41,8 @@ export async function PATCH(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   return handleRoute(async () => {
     const { userId } = await requireUser();
-    const { lotteryId } = lotteryIdParamsSchema.parse(params);
+    const resolved = await params;
+    const { lotteryId } = lotteryIdParamsSchema.parse(resolved);
 
     return deleteLottery(lotteryId, userId);
   });

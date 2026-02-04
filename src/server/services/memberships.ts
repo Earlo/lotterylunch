@@ -29,6 +29,13 @@ export async function listMemberships(groupId: string, userId: string) {
       role: true,
       status: true,
       joinedAt: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
   });
 }

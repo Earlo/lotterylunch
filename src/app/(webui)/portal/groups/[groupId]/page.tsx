@@ -5,16 +5,17 @@ import { AppShell } from '@/webui/components/layout/AppShell';
 export default async function GroupDetailPage({
   params,
 }: {
-  params: { groupId: string };
+  params: Promise<{ groupId: string }>;
 }) {
-  await requirePortalSession(`/portal/groups/${params.groupId}`);
+  const resolved = await params;
+  await requirePortalSession(`/portal/groups/${resolved.groupId}`);
 
   return (
     <AppShell
       title="Group detail"
       description="Membership, invitations, and upcoming runs will appear here."
     >
-      <GroupDetailClient groupId={params.groupId} />
+      <GroupDetailClient groupId={resolved.groupId} />
     </AppShell>
   );
 }
