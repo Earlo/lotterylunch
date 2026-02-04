@@ -7,13 +7,21 @@ export type ApiError = {
 async function parseError(response: Response): Promise<ApiError> {
   try {
     const payload = (await response.json()) as {
-      error?: string;
+      error?: string | { message?: string; details?: unknown };
       details?: unknown;
     };
+    const errorMessage =
+      typeof payload?.error === 'string'
+        ? payload.error
+        : payload?.error?.message;
+    const errorDetails =
+      typeof payload?.error === 'object' && payload?.error?.details
+        ? payload.error.details
+        : payload?.details;
     return {
       status: response.status,
-      message: payload?.error ?? response.statusText,
-      details: payload?.details,
+      message: errorMessage ?? response.statusText,
+      details: errorDetails,
     };
   } catch {
     return {

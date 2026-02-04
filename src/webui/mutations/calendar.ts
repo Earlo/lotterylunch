@@ -10,6 +10,13 @@ export async function createCalendarConnection(
   });
 }
 
+export async function startGoogleCalendarConnection(returnTo?: string) {
+  return apiFetch<{ url: string }>('/api/v1/calendar/connections/google', {
+    method: 'POST',
+    body: JSON.stringify({ returnTo }),
+  });
+}
+
 export async function deleteCalendarConnection(connectionId: string) {
   return apiFetch(`/api/v1/calendar/connections/${connectionId}`, {
     method: 'DELETE',
@@ -28,6 +35,7 @@ export async function updateAvailability(
 export async function createCalendarArtifact(
   matchId: string,
   input: {
+    provider?: CalendarConnection['provider'];
     title: string;
     startsAt: string;
     endsAt: string;

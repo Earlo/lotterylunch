@@ -2,11 +2,17 @@
 
 import { authClient } from '@/lib/auth-client';
 import type { ApiError } from '@/webui/api/client';
-import type { Match, Participation, Run } from '@/webui/api/types';
+import type {
+  CalendarConnection,
+  Match,
+  Participation,
+  Run,
+} from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
 import { Notice } from '@/webui/components/ui/Notice';
 import { createCalendarArtifact } from '@/webui/mutations/calendar';
+import { fetchCalendarConnections } from '@/webui/queries/calendar';
 import { updateParticipation } from '@/webui/mutations/participations';
 import { fetchRun } from '@/webui/queries/lotteries';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,6 +21,7 @@ export function RunDetailClient({ runId }: { runId: string }) {
   const { data: session } = authClient.useSession();
   const [run, setRun] = useState<Run | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [connections, setConnections] = useState<CalendarConnection[]>([]);
 
   const loadRun = async () => {
     try {
@@ -45,11 +52,32 @@ export function RunDetailClient({ runId }: { runId: string }) {
     };
   }, [runId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchCalendarConnections()
+      .then((data) => {
+        if (cancelled) return;
+        setConnections(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setConnections([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const myParticipation = useMemo(() => {
     const userId = session?.user?.id;
     if (!userId || !run?.participations) return null;
     return run.participations.find((item) => item.userId === userId) ?? null;
   }, [run, session?.user?.id]);
+
+  const hasGoogleConnection = useMemo(
+    () => connections.some((connection) => connection.provider === 'google'),
+    [connections],
+  );
 
   const handleParticipation = async (status: Participation['status']) => {
     try {
@@ -77,6 +105,23 @@ export function RunDetailClient({ runId }: { runId: string }) {
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message ?? 'Unable to create calendar artifact.');
+    }
+  };
+
+  const handleGoogleEvent = async (match: Match) => {
+    try {
+      const now = new Date();
+      const end = new Date(now.getTime() + 60 * 60 * 1000);
+      await createCalendarArtifact(match.id, {
+        provider: 'google',
+        title: 'Lottery Lunch',
+        startsAt: now.toISOString(),
+        endsAt: end.toISOString(),
+      });
+      await loadRun();
+    } catch (err) {
+      const apiError = err as ApiError;
+      setError(apiError.message ?? 'Unable to create Google event.');
     }
   };
 
@@ -133,6 +178,15 @@ export function RunDetailClient({ runId }: { runId: string }) {
                 >
                   Create ICS
                 </Button>
+                {hasGoogleConnection ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleGoogleEvent(match)}
+                  >
+                    Add to Google
+                  </Button>
+                ) : null}
               </div>
             ))
           )}

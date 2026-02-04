@@ -7,6 +7,7 @@ import { Notice } from '@/webui/components/ui/Notice';
 import {
   createCalendarConnection,
   deleteCalendarConnection,
+  startGoogleCalendarConnection,
 } from '@/webui/mutations/calendar';
 import { fetchCalendarConnections } from '@/webui/queries/calendar';
 import { useEffect, useState } from 'react';
@@ -23,6 +24,7 @@ export function CalendarSettings() {
   const [connections, setConnections] = useState<CalendarConnection[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const loadConnections = async () => {
     setStatus('loading');
@@ -59,6 +61,12 @@ export function CalendarSettings() {
 
   const handleConnect = async (provider: CalendarConnection['provider']) => {
     try {
+      if (provider === 'google') {
+        const returnTo = window.location.pathname;
+        const { url } = await startGoogleCalendarConnection(returnTo);
+        window.location.assign(url);
+        return;
+      }
       await createCalendarConnection(provider);
       await loadConnections();
     } catch (err) {
@@ -76,6 +84,16 @@ export function CalendarSettings() {
       setError(apiError.message ?? 'Unable to remove connection.');
     }
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const calendarStatus = params.get('calendar');
+    if (calendarStatus === 'connected') {
+      setNotice('Google Calendar connected.');
+    } else if (calendarStatus === 'error') {
+      setNotice('Google Calendar connection failed.');
+    }
+  }, []);
 
   return (
     <div className="grid gap-4">
@@ -132,6 +150,7 @@ export function CalendarSettings() {
       {status === 'loading' ? (
         <Notice>Loading calendar connections...</Notice>
       ) : null}
+      {notice ? <Notice>{notice}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
     </div>
   );
