@@ -40,7 +40,9 @@ async function parseError(response: Response): Promise<ApiError> {
         (payload?.details as { issues?: ZodIssue[] } | undefined)?.issues,
     );
     const messageBase = errorMessage ?? response.statusText;
-    const message = issueSummary ? `${messageBase}: ${issueSummary}` : messageBase;
+    const message = issueSummary
+      ? `${messageBase}: ${issueSummary}`
+      : messageBase;
     return {
       status: response.status,
       message,

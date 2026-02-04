@@ -11,11 +11,11 @@ import type {
 import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
 import { Notice } from '@/webui/components/ui/Notice';
-import { createCalendarArtifact } from '@/webui/mutations/calendar';
-import { fetchCalendarConnections } from '@/webui/queries/calendar';
-import { updateParticipation } from '@/webui/mutations/participations';
-import { fetchRun } from '@/webui/queries/lotteries';
 import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
+import { createCalendarArtifact } from '@/webui/mutations/calendar';
+import { updateParticipation } from '@/webui/mutations/participations';
+import { fetchCalendarConnections } from '@/webui/queries/calendar';
+import { fetchRun } from '@/webui/queries/lotteries';
 import { useMemo, useState } from 'react';
 
 export function RunDetailClient({ runId }: { runId: string }) {
@@ -38,9 +38,12 @@ export function RunDetailClient({ runId }: { runId: string }) {
     }
   };
 
-  useCancelableEffect((isCancelled) => {
-    loadRun({ isCancelled });
-  }, [runId]);
+  useCancelableEffect(
+    (isCancelled) => {
+      loadRun({ isCancelled });
+    },
+    [runId],
+  );
 
   useCancelableEffect((isCancelled) => {
     fetchCalendarConnections()

@@ -5,9 +5,9 @@ import type { AvailabilitySlot } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
 import { selectBaseStyles } from '@/webui/components/ui/formStyles';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { updateAvailability } from '@/webui/mutations/calendar';
 import { fetchAvailability } from '@/webui/queries/calendar';
-import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { useState } from 'react';
 
 const selectStyles = `${selectBaseStyles} px-3 py-2 text-xs`;

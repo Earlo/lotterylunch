@@ -1,5 +1,6 @@
 'use client';
 
+import { authClient } from '@/lib/auth-client';
 import type { ApiError } from '@/webui/api/client';
 import type {
   GroupDetail,
@@ -12,6 +13,7 @@ import { Card } from '@/webui/components/ui/Card';
 import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
 import { selectBaseStyles } from '@/webui/components/ui/formStyles';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { createGroupInvite } from '@/webui/mutations/invites';
 import { createLottery } from '@/webui/mutations/lotteries';
 import {
@@ -21,8 +23,6 @@ import {
 import { fetchGroup } from '@/webui/queries/groups';
 import { fetchGroupLotteries } from '@/webui/queries/lotteries';
 import { fetchMemberships } from '@/webui/queries/memberships';
-import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
-import { authClient } from '@/lib/auth-client';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -69,9 +69,12 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
     }
   };
 
-  useCancelableEffect((isCancelled) => {
-    loadAll({ isCancelled });
-  }, [groupId]);
+  useCancelableEffect(
+    (isCancelled) => {
+      loadAll({ isCancelled });
+    },
+    [groupId],
+  );
 
   const handleInvite = async () => {
     try {
@@ -173,9 +176,7 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
               >
                 <div>
                   <p className="text-sm font-semibold">
-                    {member.user?.name ||
-                      member.user?.email ||
-                      member.userId}
+                    {member.user?.name || member.user?.email || member.userId}
                   </p>
                   <p className="text-xs text-[rgba(20,18,21,0.6)]">
                     {member.role} · {member.status}

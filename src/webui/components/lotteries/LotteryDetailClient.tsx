@@ -5,9 +5,9 @@ import type { Lottery, Run } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
 import { Notice } from '@/webui/components/ui/Notice';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { cancelRun, createRun, executeRun } from '@/webui/mutations/lotteries';
 import { fetchLottery, fetchRuns } from '@/webui/queries/lotteries';
-import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { useState } from 'react';
 
 export function LotteryDetailClient({ lotteryId }: { lotteryId: string }) {
@@ -36,9 +36,12 @@ export function LotteryDetailClient({ lotteryId }: { lotteryId: string }) {
     }
   };
 
-  useCancelableEffect((isCancelled) => {
-    loadAll({ isCancelled });
-  }, [lotteryId]);
+  useCancelableEffect(
+    (isCancelled) => {
+      loadAll({ isCancelled });
+    },
+    [lotteryId],
+  );
 
   const handleCreateRun = async () => {
     if (!opensAt || !closesAt || !executesAt) return;
