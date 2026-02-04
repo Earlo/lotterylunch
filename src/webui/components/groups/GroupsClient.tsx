@@ -17,6 +17,7 @@ export function GroupsClient() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('');
   const [visibility, setVisibility] = useState<'open' | 'invite_only'>('open');
   const [joinId, setJoinId] = useState('');
   const [inviteToken, setInviteToken] = useState('');
@@ -49,10 +50,12 @@ export function GroupsClient() {
       await createGroup({
         name: name.trim(),
         description: description || undefined,
+        location: location.trim() || undefined,
         visibility,
       });
       setName('');
       setDescription('');
+      setLocation('');
       setVisibility('open');
       await loadGroups();
     } catch (err) {
@@ -110,6 +113,11 @@ export function GroupsClient() {
             placeholder="Description (optional)"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
+          />
+          <Input
+            placeholder="Location (optional)"
+            value={location}
+            onChange={(event) => setLocation(event.target.value)}
           />
           <label className="text-xs text-[rgba(20,18,21,0.7)]">
             Visibility
@@ -185,21 +193,10 @@ export function GroupsClient() {
                 >
                   {group.name}
                 </Link>
-                <p className="text-xs text-[rgba(20,18,21,0.6)]">
-                  {group.visibility} ·{' '}
-                  {new Date(group.createdAt).toLocaleDateString()}
+                <p className="text-xs text-[rgba(20,18,21,0.7)]">
+                  Location: {group.location ?? 'Not set'}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[rgba(20,18,21,0.7)]">
-                  <span className="rounded-full border border-[rgba(20,18,21,0.15)] px-2 py-1">
-                    ID: {group.id}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigator.clipboard?.writeText(group.id)}
-                  >
-                    Copy ID
-                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

@@ -8,9 +8,7 @@ export type UpdateUserProfileInput = Partial<
     | 'timezone'
     | 'image'
     | 'area'
-    | 'lunchTime'
-    | 'preferredDays'
-    | 'lotteryFrequency'
+    | 'shortNoticePreference'
   >
 >;
 

@@ -5,67 +5,62 @@ import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
 import { selectBaseStyles } from '@/webui/components/ui/formStyles';
 import { updateUserProfile } from '@/webui/mutations/user';
-import { useMemo, useState } from 'react';
+import { fetchUserProfile } from '@/webui/queries/user';
+import { useEffect, useMemo, useState } from 'react';
 
 const selectStyles = `${selectBaseStyles} px-4 py-2 text-sm`;
 
-const dayOptions = [
-  { label: 'Mon', value: 'mon' },
-  { label: 'Tue', value: 'tue' },
-  { label: 'Wed', value: 'wed' },
-  { label: 'Thu', value: 'thu' },
-  { label: 'Fri', value: 'fri' },
-  { label: 'Sat', value: 'sat' },
-  { label: 'Sun', value: 'sun' },
-];
-
-const timeOptions = Array.from({ length: 24 * 2 }).map((_, idx) => {
-  const totalMinutes = idx * 30;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  const value = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  const date = new Date(2000, 0, 1, hours, minutes);
-  const label = new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
-  return { value, label };
-});
+const shortNoticeOptions = [
+  {
+    value: 'strict',
+    label: 'Advance notice only',
+    description: 'I need plenty of notice before adjusting my calendar.',
+  },
+  {
+    value: 'standard',
+    label: 'Same-day OK',
+    description: 'I can adjust for same-day changes when needed.',
+  },
+  {
+    value: 'flexible',
+    label: 'Last-minute OK',
+    description: 'I am comfortable with short-notice changes.',
+  },
+] as const;
 
 export function PreferencesSettings() {
-  const [lunchTime, setLunchTime] = useState('12:00');
-  const [frequency, setFrequency] = useState('weekly');
-  const [preferredDays, setPreferredDays] = useState<string[]>(['tue', 'thu']);
+  const [shortNoticePreference, setShortNoticePreference] = useState<
+    'strict' | 'standard' | 'flexible'
+  >('standard');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>(
     'idle',
   );
   const [error, setError] = useState<string | null>(null);
 
-  const readableTime = useMemo(() => {
-    const [hour, minute] = lunchTime.split(':').map(Number);
-    const date = new Date(2000, 0, 1, hour, minute);
-    return new Intl.DateTimeFormat(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(date);
-  }, [lunchTime]);
+  useEffect(() => {
+    fetchUserProfile()
+      .then((profile) => {
+        if (profile.shortNoticePreference) {
+          setShortNoticePreference(profile.shortNoticePreference);
+        }
+      })
+      .catch(() => null);
+  }, []);
 
-  const toggleDay = (value: string) => {
-    setPreferredDays((current) =>
-      current.includes(value)
-        ? current.filter((day) => day !== value)
-        : [...current, value],
-    );
-  };
+  const selectedOption = useMemo(
+    () =>
+      shortNoticeOptions.find(
+        (option) => option.value === shortNoticePreference,
+      ),
+    [shortNoticePreference],
+  );
 
   const handleSave = async () => {
     setStatus('saving');
     setError(null);
     try {
       await updateUserProfile({
-        lunchTime,
-        preferredDays,
-        lotteryFrequency: frequency as 'weekly' | 'biweekly' | 'monthly',
+        shortNoticePreference,
       });
       setStatus('saved');
     } catch (err) {
@@ -81,57 +76,34 @@ export function PreferencesSettings() {
         <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">
           Preferences
         </p>
-        <h2 className="text-2xl font-semibold">Lunch &amp; scheduling</h2>
+        <h2 className="text-2xl font-semibold">Calendar flexibility</h2>
         <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
-          Capture preferred lunch times, days, and the default lottery cadence.
+          Tell us how quickly you can adjust your calendar when a match is ready.
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:max-w-lg">
         <label className="text-sm">
-          Lunch time (24h)
+          Short-notice flexibility
           <select
             className={`${selectStyles} mt-2`}
-            value={lunchTime}
-            onChange={(event) => setLunchTime(event.target.value)}
+            value={shortNoticePreference}
+            onChange={(event) =>
+              setShortNoticePreference(
+                event.target.value as 'strict' | 'standard' | 'flexible',
+              )
+            }
           >
-            {timeOptions.map((option) => (
+            {shortNoticeOptions.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.value} · {option.label}
+                {option.label}
               </option>
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          Lottery frequency
-          <select
-            className={`${selectStyles} mt-2`}
-            value={frequency}
-            onChange={(event) => setFrequency(event.target.value)}
-          >
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Every other week</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
-        <div className="text-sm sm:col-span-2">
-          Preferred days
-          <div className="mt-2 flex flex-wrap gap-2">
-            {dayOptions.map((day) => (
-              <label
-                key={day.value}
-                className="flex items-center gap-2 rounded-full border border-[rgba(20,18,21,0.2)] bg-white/70 px-3 py-1.5 text-xs"
-              >
-                <input
-                  type="checkbox"
-                  checked={preferredDays.includes(day.value)}
-                  onChange={() => toggleDay(day.value)}
-                />
-                {day.label}
-              </label>
-            ))}
-          </div>
-        </div>
+        <p className="text-xs text-[rgba(20,18,21,0.6)]">
+          {selectedOption?.description}
+        </p>
       </div>
 
       <div>
@@ -144,7 +116,7 @@ export function PreferencesSettings() {
         </Button>
       </div>
       <Notice>
-        Saved lunch time: {lunchTime} ({readableTime} local time)
+        Current preference: {selectedOption?.label ?? 'Not set'}.
       </Notice>
       {status === 'saved' ? <Notice>Preferences saved.</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}

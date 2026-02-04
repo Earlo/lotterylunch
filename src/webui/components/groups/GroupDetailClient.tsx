@@ -2,62 +2,45 @@
 
 import { authClient } from '@/lib/auth-client';
 import type { ApiError } from '@/webui/api/client';
-import type {
-  GroupDetail,
-  GroupInvite,
-  Lottery,
-  Membership,
-} from '@/webui/api/types';
+import type { GroupDetail, GroupInvite, Membership } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
-import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
 import { selectBaseStyles } from '@/webui/components/ui/formStyles';
 import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { createGroupInvite } from '@/webui/mutations/invites';
-import { createLottery } from '@/webui/mutations/lotteries';
 import {
   removeMembership,
   updateMembership,
 } from '@/webui/mutations/memberships';
 import { fetchGroup } from '@/webui/queries/groups';
-import { fetchGroupLotteries } from '@/webui/queries/lotteries';
 import { fetchMemberships } from '@/webui/queries/memberships';
-import Link from 'next/link';
 import { useState } from 'react';
-
-const selectStyles = `${selectBaseStyles} px-3 py-2 text-xs`;
 
 export function GroupDetailClient({ groupId }: { groupId: string }) {
   const { data: session } = authClient.useSession();
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [lotteries, setLotteries] = useState<Lottery[]>([]);
   const [invite, setInvite] = useState<GroupInvite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [lotteryName, setLotteryName] = useState('');
-  const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>(
-    'weekly',
-  );
   const myMembership = memberships.find(
     (member) => member.userId === session?.user?.id,
   );
   const isAdmin =
     myMembership?.role === 'owner' || myMembership?.role === 'admin';
+  const selectStyles = `${selectBaseStyles} px-3 py-2 text-xs`;
 
   const loadAll = async (opts?: { isCancelled?: () => boolean }) => {
     const isCancelled = opts?.isCancelled ?? (() => false);
     try {
-      const [groupData, membershipData, lotteriesData] = await Promise.all([
+      const [groupData, membershipData] = await Promise.all([
         fetchGroup(groupId),
         fetchMemberships(groupId),
-        fetchGroupLotteries(groupId),
       ]);
       if (isCancelled()) return;
       setGroup(groupData);
       setMemberships(membershipData);
-      setLotteries(lotteriesData);
       setError(null);
       setLoadError(null);
     } catch (err) {
@@ -110,25 +93,6 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
     }
   };
 
-  const handleCreateLottery = async () => {
-    if (!lotteryName.trim()) {
-      setError('Please name this match cycle before creating it.');
-      return;
-    }
-    try {
-      await createLottery(groupId, {
-        name: lotteryName.trim(),
-        scheduleJson: { frequency },
-      });
-      setLotteryName('');
-      setError(null);
-      await loadAll();
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to create lottery.');
-    }
-  };
-
   return (
     <div className="grid gap-6">
       {error ? <Notice>{error}</Notice> : null}
@@ -138,7 +102,10 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
           <p className="font-semibold">{group?.name ?? 'Group'}</p>
           <p className="text-[rgba(20,18,21,0.7)]">{group?.description}</p>
           <p className="text-xs text-[rgba(20,18,21,0.6)]">
-            Visibility: {group?.visibility ?? 'open'} · ID: {groupId}
+            Location:{' '}
+            <span className="text-[rgba(20,18,21,0.7)]">
+              {group?.location ?? 'Not set'}
+            </span>
           </p>
         </div>
       </Card>
@@ -179,7 +146,7 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
                     {member.user?.name || member.user?.email || member.userId}
                   </p>
                   <p className="text-xs text-[rgba(20,18,21,0.6)]">
-                    {member.role} · {member.status}
+                    {member.role}
                   </p>
                 </div>
                 {isAdmin ? (
@@ -210,58 +177,6 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
               </div>
             ))
           )}
-        </div>
-      </Card>
-
-      <Card title="Lotteries">
-        <div className="grid gap-4">
-          {isAdmin ? (
-            <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
-              <Input
-                placeholder="Match cycle name (e.g. Weekly lunch)"
-                value={lotteryName}
-                onChange={(event) => setLotteryName(event.target.value)}
-              />
-              <select
-                className={selectStyles}
-                value={frequency}
-                onChange={(event) =>
-                  setFrequency(
-                    event.target.value as 'weekly' | 'biweekly' | 'monthly',
-                  )
-                }
-              >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Every other week</option>
-                <option value="monthly">Monthly</option>
-              </select>
-              <Button variant="accent" onClick={handleCreateLottery}>
-                Create
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-[rgba(20,18,21,0.6)]">
-              Only admins can create match cycles.
-            </p>
-          )}
-
-          <div className="grid gap-2">
-            {lotteries.length === 0 ? (
-              <p className="text-sm text-[rgba(20,18,21,0.6)]">
-                {loadError ? 'Unable to load lotteries.' : 'No lotteries yet.'}
-              </p>
-            ) : (
-              lotteries.map((lottery) => (
-                <Link
-                  key={lottery.id}
-                  href={`/portal/lotteries/${lottery.id}`}
-                  className="rounded-md border border-[rgba(20,18,21,0.12)] bg-white/70 px-4 py-3 text-sm font-semibold"
-                >
-                  {lottery.name}
-                </Link>
-              ))
-            )}
-          </div>
         </div>
       </Card>
     </div>

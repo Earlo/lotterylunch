@@ -13,7 +13,7 @@ export default async function GroupDetailPage({
   return (
     <AppShell
       title="Group detail"
-      description="Membership, invitations, and upcoming runs will appear here."
+      description="Membership, invitations, and location details live here."
     >
       <GroupDetailClient groupId={resolved.groupId} />
     </AppShell>

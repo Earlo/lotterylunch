@@ -22,6 +22,7 @@ export async function createGroup(userId: string, input: CreateGroupInput) {
       data: {
         name: input.name,
         description: input.description,
+        location: input.location,
         visibility: input.visibility ?? Visibility.open,
         ownerId: userId,
       },

@@ -12,19 +12,19 @@ export default async function SettingsPage() {
   return (
     <AppShell
       title="Account settings"
-      description="Update your profile, preferences, and calendar connections."
+      description="Update your profile, calendar flexibility, and calendar connections."
     >
       <div className="grid gap-6">
         <Card title="Profile">
           <AccountSettings />
         </Card>
-        <Card title="Lunch preferences">
+        <Card title="Calendar flexibility">
           <PreferencesSettings />
         </Card>
         <Card title="Calendar connections">
           <CalendarSettings />
         </Card>
-        <Card title="Availability">
+        <Card title="Preferred times">
           <AvailabilitySettings />
         </Card>
       </div>

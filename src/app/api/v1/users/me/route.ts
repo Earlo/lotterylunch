@@ -15,9 +15,7 @@ export async function GET() {
         timezone: true,
         image: true,
         area: true,
-        lunchTime: true,
-        preferredDays: true,
-        lotteryFrequency: true,
+        shortNoticePreference: true,
       },
     });
   });
@@ -36,9 +34,7 @@ export async function PATCH(req: Request) {
         timezone: input.timezone,
         image: input.image,
         area: input.area,
-        lunchTime: input.lunchTime,
-        preferredDays: input.preferredDays,
-        lotteryFrequency: input.lotteryFrequency,
+        shortNoticePreference: input.shortNoticePreference,
       },
       select: {
         id: true,
@@ -47,9 +43,7 @@ export async function PATCH(req: Request) {
         timezone: true,
         image: true,
         area: true,
-        lunchTime: true,
-        preferredDays: true,
-        lotteryFrequency: true,
+        shortNoticePreference: true,
       },
     });
   });

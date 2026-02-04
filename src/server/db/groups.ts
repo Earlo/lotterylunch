@@ -29,6 +29,7 @@ export function updateGroupById(groupId: string, input: UpdateGroupInput) {
     data: {
       name: input.name,
       description: input.description,
+      location: input.location,
       visibility: input.visibility,
     },
   });

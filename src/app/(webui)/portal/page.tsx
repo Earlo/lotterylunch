@@ -13,12 +13,12 @@ export default async function PortalPage() {
   return (
     <AppShell
       title="Welcome back"
-      description="Your portal overview, membership status, and next runs will live here."
+      description="Your portal overview and membership status live here."
     >
       <div className="grid gap-6">
         <EmptyState
           title="Nothing scheduled yet"
-          description="Create or join a group to start scheduling lottery runs and seeing matches."
+          description="Create or join a group to meet teammates and share calendars."
           action={
             <Button variant="accent" as={Link} href="/portal/groups">
               Go to groups
@@ -28,7 +28,7 @@ export default async function PortalPage() {
         <ClientAuthGate>
           <Card title="Session confirmed">
             <p className="text-sm text-[rgba(20,18,21,0.7)]">
-              You are signed in and ready to configure your next run.
+              You are signed in and ready to manage your groups and calendar.
             </p>
           </Card>
         </ClientAuthGate>

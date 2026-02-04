@@ -4,6 +4,7 @@ import type { GroupDetail } from '@/webui/api/types';
 export type CreateGroupInput = {
   name: string;
   description?: string;
+  location?: string;
   visibility?: 'open' | 'invite_only';
 };
 

@@ -8,6 +8,7 @@ import { z } from 'zod';
 export const createGroupSchema = z.object({
   name: nonEmptyString.max(120),
   description: z.string().trim().max(2000).optional(),
+  location: z.string().trim().max(200).optional(),
   visibility: visibilitySchema.optional(),
 });
 
@@ -21,6 +22,7 @@ export const updateGroupSchema = z
   .object({
     name: nonEmptyString.max(120).optional(),
     description: z.string().trim().max(2000).optional(),
+    location: z.string().trim().max(200).optional(),
     visibility: visibilitySchema.optional(),
   })
   .refine((val) => Object.keys(val).length > 0, {

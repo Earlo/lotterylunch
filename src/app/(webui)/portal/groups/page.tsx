@@ -8,7 +8,7 @@ export default async function GroupsPage() {
   return (
     <AppShell
       title="Groups"
-      description="Manage group membership, invitations, and participation windows."
+      description="Manage group membership, invitations, and locations."
     >
       <GroupsClient />
     </AppShell>

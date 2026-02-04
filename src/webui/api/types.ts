@@ -1,6 +1,7 @@
 export type GroupSummary = {
   id: string;
   name: string;
+  location?: string | null;
   visibility: 'open' | 'invite_only';
   createdAt: string;
 };
@@ -16,9 +17,7 @@ export type UserProfile = {
   timezone?: string | null;
   image?: string | null;
   area?: string | null;
-  lunchTime?: string | null;
-  preferredDays?: string[];
-  lotteryFrequency?: 'weekly' | 'biweekly' | 'monthly' | null;
+  shortNoticePreference?: 'strict' | 'standard' | 'flexible' | null;
 };
 
 export type Membership = {
@@ -46,46 +45,15 @@ export type GroupInvite = {
   createdAt: string;
 };
 
-export type Lottery = {
-  id: string;
-  groupId: string;
-  name: string;
-  isActive: boolean;
-  groupSizeMin: number;
-  groupSizeMax: number;
-  repeatWindowRuns: number;
-  scheduleJson: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Run = {
-  id: string;
-  lotteryId: string;
-  status: 'scheduled' | 'open' | 'matching' | 'matched' | 'canceled';
-  enrollmentOpensAt: string;
-  enrollmentClosesAt: string;
-  matchingExecutesAt: string;
-  matchedAt?: string | null;
-  matches?: Match[];
-  participations?: Participation[];
-};
-
-export type Participation = {
-  id: string;
-  runId: string;
-  userId: string;
-  status: 'pending' | 'confirmed' | 'declined';
-  respondedAt?: string | null;
-};
-
 export type Match = {
   id: string;
-  runId?: string | null;
   groupId: string;
+  scheduledFor?: string | null;
+  state?: 'created' | 'scheduled' | 'cancelled';
   memberIds?: string[] | null;
   status: 'proposed' | 'confirmed' | 'canceled';
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type CalendarConnection = {

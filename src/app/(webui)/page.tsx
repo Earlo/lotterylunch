@@ -19,8 +19,8 @@ export default function HomePage() {
           </h1>
           <p className="max-w-2xl text-lg text-[rgba(20,18,21,0.7)]">
             LotteryLunch is an API-first pairing engine with a focused portal
-            for teams to run recurring lunch matches, confirm participation, and
-            see who they are meeting next.
+            for teams to manage groups, keep calendars aligned, and see who they
+            are meeting next.
           </p>
           <div className="flex flex-wrap gap-3">
             <AuthButton />
