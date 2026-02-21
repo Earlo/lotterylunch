@@ -16,6 +16,8 @@ export async function GET() {
         image: true,
         area: true,
         shortNoticePreference: true,
+        weekStartDay: true,
+        clockFormat: true,
       },
     });
   });
@@ -35,6 +37,8 @@ export async function PATCH(req: Request) {
         image: input.image,
         area: input.area,
         shortNoticePreference: input.shortNoticePreference,
+        weekStartDay: input.weekStartDay,
+        clockFormat: input.clockFormat,
       },
       select: {
         id: true,
@@ -44,6 +48,8 @@ export async function PATCH(req: Request) {
         image: true,
         area: true,
         shortNoticePreference: true,
+        weekStartDay: true,
+        clockFormat: true,
       },
     });
   });

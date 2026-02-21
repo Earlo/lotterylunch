@@ -28,10 +28,40 @@ const shortNoticeOptions = [
   },
 ] as const;
 
+const weekStartOptions = [
+  {
+    value: 'monday',
+    label: 'Monday',
+    description: 'Week view starts on Monday.',
+  },
+  {
+    value: 'sunday',
+    label: 'Sunday',
+    description: 'Week view starts on Sunday.',
+  },
+] as const;
+
+const clockFormatOptions = [
+  {
+    value: 'h24',
+    label: '24-hour',
+    description: 'Times display as 13:30.',
+  },
+  {
+    value: 'ampm',
+    label: 'AM/PM',
+    description: 'Times display as 1:30 PM.',
+  },
+] as const;
+
 export function PreferencesSettings() {
   const [shortNoticePreference, setShortNoticePreference] = useState<
     'strict' | 'standard' | 'flexible'
   >('standard');
+  const [weekStartDay, setWeekStartDay] = useState<'monday' | 'sunday'>(
+    'monday',
+  );
+  const [clockFormat, setClockFormat] = useState<'h24' | 'ampm'>('h24');
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>(
     'idle',
   );
@@ -42,6 +72,12 @@ export function PreferencesSettings() {
       .then((profile) => {
         if (profile.shortNoticePreference) {
           setShortNoticePreference(profile.shortNoticePreference);
+        }
+        if (profile.weekStartDay) {
+          setWeekStartDay(profile.weekStartDay);
+        }
+        if (profile.clockFormat) {
+          setClockFormat(profile.clockFormat);
         }
       })
       .catch(() => null);
@@ -54,6 +90,14 @@ export function PreferencesSettings() {
       ),
     [shortNoticePreference],
   );
+  const selectedWeekStartOption = useMemo(
+    () => weekStartOptions.find((option) => option.value === weekStartDay),
+    [weekStartDay],
+  );
+  const selectedClockFormatOption = useMemo(
+    () => clockFormatOptions.find((option) => option.value === clockFormat),
+    [clockFormat],
+  );
 
   const handleSave = async () => {
     setStatus('saving');
@@ -61,6 +105,8 @@ export function PreferencesSettings() {
     try {
       await updateUserProfile({
         shortNoticePreference,
+        weekStartDay,
+        clockFormat,
       });
       setStatus('saved');
     } catch (err) {
@@ -76,9 +122,9 @@ export function PreferencesSettings() {
         <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">
           Preferences
         </p>
-        <h2 className="text-2xl font-semibold">Calendar flexibility</h2>
+        <h2 className="text-2xl font-semibold">Calendar preferences</h2>
         <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
-          Tell us how quickly you can adjust your calendar when a match is ready.
+          Set your flexibility plus how the schedule calendar should be displayed.
         </p>
       </div>
 
@@ -104,6 +150,44 @@ export function PreferencesSettings() {
         <p className="text-xs text-[rgba(20,18,21,0.6)]">
           {selectedOption?.description}
         </p>
+        <label className="text-sm">
+          Week starts on
+          <select
+            className={`${selectStyles} mt-2`}
+            value={weekStartDay}
+            onChange={(event) =>
+              setWeekStartDay(event.target.value as 'monday' | 'sunday')
+            }
+          >
+            {weekStartOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-[rgba(20,18,21,0.6)]">
+          {selectedWeekStartOption?.description}
+        </p>
+        <label className="text-sm">
+          Time display
+          <select
+            className={`${selectStyles} mt-2`}
+            value={clockFormat}
+            onChange={(event) =>
+              setClockFormat(event.target.value as 'h24' | 'ampm')
+            }
+          >
+            {clockFormatOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="text-xs text-[rgba(20,18,21,0.6)]">
+          {selectedClockFormatOption?.description}
+        </p>
       </div>
 
       <div>
@@ -117,6 +201,10 @@ export function PreferencesSettings() {
       </div>
       <Notice>
         Current preference: {selectedOption?.label ?? 'Not set'}.
+        {' '}
+        Week starts on {selectedWeekStartOption?.label ?? 'Monday'}.
+        {' '}
+        Time display: {selectedClockFormatOption?.label ?? '24-hour'}.
       </Notice>
       {status === 'saved' ? <Notice>Preferences saved.</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}

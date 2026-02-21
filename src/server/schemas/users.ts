@@ -9,6 +9,8 @@ export const updateUserProfileSchema = z
     shortNoticePreference: z
       .enum(['strict', 'standard', 'flexible'])
       .optional(),
+    weekStartDay: z.enum(['monday', 'sunday']).optional(),
+    clockFormat: z.enum(['h24', 'ampm']).optional(),
   })
   .refine((val) => Object.keys(val).length > 0, {
     message: 'Provide at least one field to update',

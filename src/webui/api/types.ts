@@ -18,6 +18,8 @@ export type UserProfile = {
   image?: string | null;
   area?: string | null;
   shortNoticePreference?: 'strict' | 'standard' | 'flexible' | null;
+  weekStartDay?: 'monday' | 'sunday' | null;
+  clockFormat?: 'h24' | 'ampm' | null;
 };
 
 export type Membership = {

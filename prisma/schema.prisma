@@ -40,6 +40,16 @@ enum ShortNoticePreference {
   flexible
 }
 
+enum WeekStartDay {
+  monday
+  sunday
+}
+
+enum ClockFormat {
+  h24
+  ampm
+}
+
 enum MatchStatus {
   proposed
   confirmed
@@ -72,27 +82,29 @@ enum EventStatus {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  email               String               @unique
-  emailVerified       Boolean              @default(false)
-  name                String?
-  timezone            String               @default("UTC")
-  image               String?
-  area                String?
+  id                    String                @id @default(cuid())
+  email                 String                @unique
+  emailVerified         Boolean               @default(false)
+  name                  String?
+  timezone              String                @default("UTC")
+  image                 String?
+  area                  String?
   shortNoticePreference ShortNoticePreference?
-  authProvider        String?
-  memberships         Membership[]
-  calendarConnections CalendarConnection[]
-  availability        AvailabilitySlot[]
-  invitesCreated      GroupInvite[]
-  apiTokens           ApiToken[]
-  webhooks            WebhookEndpoint[]
-  ownedGroups         Group[]              @relation("GroupOwner")
-  accounts            Account[]
-  sessions            Session[]
-  Authenticator       Authenticator[]
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
+  weekStartDay          WeekStartDay          @default(monday)
+  clockFormat           ClockFormat           @default(h24)
+  authProvider          String?
+  memberships           Membership[]
+  calendarConnections   CalendarConnection[]
+  availability          AvailabilitySlot[]
+  invitesCreated        GroupInvite[]
+  apiTokens             ApiToken[]
+  webhooks              WebhookEndpoint[]
+  ownedGroups           Group[]               @relation("GroupOwner")
+  accounts              Account[]
+  sessions              Session[]
+  Authenticator         Authenticator[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 }
 
 model Group {

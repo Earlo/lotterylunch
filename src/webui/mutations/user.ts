@@ -9,6 +9,8 @@ export type UpdateUserProfileInput = Partial<
     | 'image'
     | 'area'
     | 'shortNoticePreference'
+    | 'weekStartDay'
+    | 'clockFormat'
   >
 >;
 

@@ -18,7 +18,7 @@ export default async function SettingsPage() {
         <Card title="Profile">
           <AccountSettings />
         </Card>
-        <Card title="Calendar flexibility">
+        <Card title="Calendar preferences">
           <PreferencesSettings />
         </Card>
         <Card title="Calendar connections">
