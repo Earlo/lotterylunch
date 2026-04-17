@@ -46,7 +46,7 @@
     "prettier-plugin-tailwindcss": "0.7.2",
     "prisma": "7.7.0",
     "tailwindcss": "4.2.2",
-    "typescript": "6.0.2"
+    "typescript": "6.0.3"
   },
   "engines": {
     "node": "24.x || 25.x"
