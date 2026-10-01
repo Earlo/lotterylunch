@@ -15,20 +15,26 @@ const disabledToken = 'X-LL-DISABLED=1';
 const dayOffOverrideToken = 'X-LL-DAY-OFF=1';
 
 export function buildWeeklyTemplateRule(weekday: number, enabled = true) {
-  const clampedWeekday = Math.min(Math.max(weekday, 0), 6);
+  const clampedWeekday = Number.isFinite(weekday)
+    ? Math.min(Math.max(Math.trunc(weekday), 0), 6)
+    : 0;
   const baseRule = `FREQ=WEEKLY;BYDAY=${weekDayCodes[clampedWeekday]}`;
   return enabled ? baseRule : `${baseRule};${disabledToken}`;
 }
 
 export function parseWeeklyTemplateRule(recurringRule?: string | null) {
-  if (!recurringRule || !recurringRule.includes('FREQ=WEEKLY')) return null;
+  if (!recurringRule) return null;
+  const tokens = recurringRule.split(';');
+  if (!tokens.includes('FREQ=WEEKLY')) return null;
   const byDayMatch = recurringRule.match(/(?:^|;)BYDAY=([A-Z]{2})(?:;|$)/);
   if (!byDayMatch) return null;
-  const weekday = weekDayCodes.indexOf(byDayMatch[1] as (typeof weekDayCodes)[number]);
+  const weekday = weekDayCodes.indexOf(
+    byDayMatch[1] as (typeof weekDayCodes)[number],
+  );
   if (weekday < 0) return null;
   return {
     weekday,
-    enabled: !recurringRule.includes(disabledToken),
+    enabled: !tokens.includes(disabledToken),
   };
 }
 
@@ -39,7 +45,7 @@ export function buildDayOffOverrideRule() {
 export function isDayOffOverrideSlot(
   slot: Pick<AvailabilitySlot, 'recurringRule'>,
 ) {
-  return Boolean(slot.recurringRule?.includes(dayOffOverrideToken));
+  return Boolean(slot.recurringRule?.split(';').includes(dayOffOverrideToken));
 }
 
 export function isWeeklyTemplateSlot(

@@ -1,7 +1,10 @@
 import { useEffect, useRef, type DependencyList } from 'react';
 
 export function useCancelableEffect(
-  effect: (isCancelled: () => boolean) => void | (() => void),
+  effect: (
+    isCancelled: () => boolean,
+    signal: AbortSignal,
+  ) => void | (() => void),
   deps: DependencyList,
 ) {
   const effectRef = useRef(effect);
@@ -12,9 +15,11 @@ export function useCancelableEffect(
 
   useEffect(() => {
     let cancelled = false;
-    const cleanup = effectRef.current(() => cancelled);
+    const controller = new AbortController();
+    const cleanup = effectRef.current(() => cancelled, controller.signal);
     return () => {
       cancelled = true;
+      controller.abort();
       if (typeof cleanup === 'function') {
         cleanup();
       }

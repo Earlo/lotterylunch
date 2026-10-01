@@ -11,9 +11,26 @@ import {
   weekDayLabels,
 } from '@/webui/components/settings/weeklyTemplateUtils';
 import { Button } from '@/webui/components/ui/Button';
-import { useMemo, useRef, useState, type MouseEvent, type PointerEvent } from 'react';
+import { Input } from '@/webui/components/ui/Input';
+import { selectBaseStyles } from '@/webui/components/ui/formStyles';
+import {
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
 
-const weekDaysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+const weekDaysShort = [
+  'Sun',
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+] as const;
 
 const monthLabelFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'long',
@@ -172,10 +189,15 @@ function minuteFromPointer(clientY: number, rect: DOMRect) {
 
 function minuteToY(minute: number) {
   const clamped = clampMinute(minute);
-  return ((clamped - timelineStartMinutes) / timelineRangeMinutes) * timelineHeightPx;
+  return (
+    ((clamped - timelineStartMinutes) / timelineRangeMinutes) * timelineHeightPx
+  );
 }
 
-function formatMinutesLabel(minutes: number, clockFormat: ClockFormatPreference) {
+function formatMinutesLabel(
+  minutes: number,
+  clockFormat: ClockFormatPreference,
+) {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
   date.setMinutes(minutes);
@@ -241,7 +263,7 @@ function ActionIconButton({
           className="h-[18px] w-[18px]"
           fill="none"
           stroke="currentColor"
-            strokeWidth="1.6"
+          strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
@@ -257,8 +279,8 @@ function ActionIconButton({
           viewBox="0 0 16 16"
           className="h-[18px] w-[18px]"
           fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
+          stroke="currentColor"
+          strokeWidth="1.8"
           strokeLinecap="round"
         >
           <path d="M3.5 8h9" />
@@ -268,8 +290,8 @@ function ActionIconButton({
           viewBox="0 0 16 16"
           className="h-[18px] w-[18px]"
           fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
+          stroke="currentColor"
+          strokeWidth="1.8"
           strokeLinecap="round"
         >
           <path d="M8 4v8" />
@@ -296,13 +318,21 @@ export function UserScheduleCalendar({
   groups: GroupSummary[];
   weekStartDay: WeekStartDayPreference;
   clockFormat: ClockFormatPreference;
-  onCreateWeeklySlot: (weekday: number, startMinute: number, endMinute: number) => void;
+  onCreateWeeklySlot: (
+    weekday: number,
+    startMinute: number,
+    endMinute: number,
+  ) => void;
   onCreateWeeklySlotForAllWeekdays: (
     startMinute: number,
     endMinute: number,
   ) => void;
   onDeleteSlot: (index: number) => void;
-  onCreateDaySlot: (dateKey: string, startMinute: number, endMinute: number) => void;
+  onCreateDaySlot: (
+    dateKey: string,
+    startMinute: number,
+    endMinute: number,
+  ) => void;
   onDisableWeeklySlotForDay: (input: {
     dateKey: string;
     startMinute: number;
@@ -316,15 +346,24 @@ export function UserScheduleCalendar({
   const todayKey = toDateKey(today);
   const [monthCursor, setMonthCursor] = useState(() => firstDayOfMonth(today));
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
+  const [slotScope, setSlotScope] = useState('day');
+  const [slotStart, setSlotStart] = useState('12:00');
+  const [slotEnd, setSlotEnd] = useState('13:00');
 
-  const [weekDrawState, setWeekDrawState] = useState<WeekDrawState | null>(null);
+  const [weekDrawState, setWeekDrawState] = useState<WeekDrawState | null>(
+    null,
+  );
   const weekDrawStateRef = useRef<WeekDrawState | null>(null);
 
   const [dayDrawState, setDayDrawState] = useState<DayDrawState | null>(null);
   const dayDrawStateRef = useRef<DayDrawState | null>(null);
   const firstWeekdayIndex = weekStartDay === 'monday' ? 1 : 0;
   const orderedWeekdayIndexes = useMemo(
-    () => Array.from({ length: 7 }, (_, offset) => (firstWeekdayIndex + offset) % 7),
+    () =>
+      Array.from(
+        { length: 7 },
+        (_, offset) => (firstWeekdayIndex + offset) % 7,
+      ),
     [firstWeekdayIndex],
   );
   const orderedWeekDaysShort = useMemo(
@@ -460,10 +499,7 @@ export function UserScheduleCalendar({
     const map = new Map<string, Set<string>>();
 
     for (const [dateKey, entries] of dayOffEntriesByDate) {
-      map.set(
-        dateKey,
-        new Set(entries.map((entry) => entry.signature)),
-      );
+      map.set(dateKey, new Set(entries.map((entry) => entry.signature)));
     }
 
     return map;
@@ -479,7 +515,8 @@ export function UserScheduleCalendar({
       const date = addDays(gridStart, index);
       const key = toDateKey(date);
       const daySpecificCount = daySpecificEntriesByDate.get(key)?.length ?? 0;
-      const dayOffSignatures = dayOffSignaturesByDate.get(key) ?? new Set<string>();
+      const dayOffSignatures =
+        dayOffSignaturesByDate.get(key) ?? new Set<string>();
 
       let weeklyCount = 0;
       const weeklyEntries = weeklyTemplatesByWeekday.get(date.getDay()) ?? [];
@@ -529,8 +566,10 @@ export function UserScheduleCalendar({
       });
     }
 
-    const dayOffSignatures = dayOffSignaturesByDate.get(selectedDateKey) ?? new Set<string>();
-    const weeklyEntries = weeklyTemplatesByWeekday.get(selectedDate.getDay()) ?? [];
+    const dayOffSignatures =
+      dayOffSignaturesByDate.get(selectedDateKey) ?? new Set<string>();
+    const weeklyEntries =
+      weeklyTemplatesByWeekday.get(selectedDate.getDay()) ?? [];
 
     for (const entry of weeklyEntries) {
       if (!entry.enabled) continue;
@@ -634,7 +673,8 @@ export function UserScheduleCalendar({
     if (entries.length === 0) return [];
 
     const activeWeeklySignatures = new Set<string>();
-    const weeklyEntries = weeklyTemplatesByWeekday.get(selectedDate.getDay()) ?? [];
+    const weeklyEntries =
+      weeklyTemplatesByWeekday.get(selectedDate.getDay()) ?? [];
     for (const entry of weeklyEntries) {
       if (!entry.enabled) continue;
       activeWeeklySignatures.add(
@@ -648,7 +688,9 @@ export function UserScheduleCalendar({
       );
     }
 
-    return entries.filter((entry) => activeWeeklySignatures.has(entry.signature));
+    return entries.filter((entry) =>
+      activeWeeklySignatures.has(entry.signature),
+    );
   }, [
     dayOffEntriesByDate,
     selectedDate,
@@ -771,7 +813,9 @@ export function UserScheduleCalendar({
     }
   };
 
-  const handleDayTimelinePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+  const handleDayTimelinePointerDown = (
+    event: PointerEvent<HTMLDivElement>,
+  ) => {
     if (event.button !== 0) return;
     const minute = minuteFromPointer(
       event.clientY,
@@ -789,7 +833,9 @@ export function UserScheduleCalendar({
     setDayDrawState(nextDrawState);
   };
 
-  const handleDayTimelinePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+  const handleDayTimelinePointerMove = (
+    event: PointerEvent<HTMLDivElement>,
+  ) => {
     const current = dayDrawStateRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
 
@@ -827,7 +873,9 @@ export function UserScheduleCalendar({
     }
   };
 
-  const handleDayTimelinePointerCancel = (event: PointerEvent<HTMLDivElement>) => {
+  const handleDayTimelinePointerCancel = (
+    event: PointerEvent<HTMLDivElement>,
+  ) => {
     const current = dayDrawStateRef.current;
     if (current && current.pointerId === event.pointerId) {
       dayDrawStateRef.current = null;
@@ -843,6 +891,27 @@ export function UserScheduleCalendar({
     ? normalizeDrawRange(dayDrawState.anchorMinute, dayDrawState.currentMinute)
     : null;
 
+  const addSlotFromForm = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const [startHour, startMinute] = slotStart.split(':').map(Number);
+    const [endHour, endMinute] = slotEnd.split(':').map(Number);
+    const start = startHour * 60 + startMinute;
+    const end = endHour * 60 + endMinute;
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      end - start < timelineStepMinutes
+    )
+      return;
+    if (slotScope === 'day') {
+      onCreateDaySlot(selectedDateKey, start, end);
+    } else if (slotScope === 'weekdays') {
+      onCreateWeeklySlotForAllWeekdays(start, end);
+    } else {
+      onCreateWeeklySlot(Number(slotScope), start, end);
+    }
+  };
+
   return (
     <div className="grid gap-4 rounded-md border border-[rgba(20,18,21,0.12)] bg-white/70 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -851,17 +920,31 @@ export function UserScheduleCalendar({
             Schedule
           </p>
           <p className="text-sm text-[rgba(20,18,21,0.7)]">
-            Weekly timeline is the default. Customize specific dates from the calendar.
+            Weekly timeline is the default. Customize specific dates from the
+            calendar.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={showPreviousMonth}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={showPreviousMonth}
+            aria-label="Previous month"
+          >
             Prev
           </Button>
-          <p className="min-w-36 text-center text-sm font-semibold">
+          <p
+            aria-live="polite"
+            className="min-w-36 text-center text-sm font-semibold"
+          >
             {monthLabelFormatter.format(monthCursor)}
           </p>
-          <Button variant="ghost" size="sm" onClick={showNextMonth}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={showNextMonth}
+            aria-label="Next month"
+          >
             Next
           </Button>
           <Button variant="ghost" size="sm" onClick={jumpToToday}>
@@ -881,8 +964,11 @@ export function UserScheduleCalendar({
           const isSelected = selectedDateKey === day.key;
           return (
             <button
-              key={`${day.key}-${day.activeCount}`}
+              key={day.key}
               type="button"
+              aria-label={`${selectedDateLabelFormatter.format(day.date)}, ${day.activeCount} slot${day.activeCount === 1 ? '' : 's'}`}
+              aria-pressed={isSelected}
+              aria-current={day.isToday ? 'date' : undefined}
               onClick={() => {
                 setSelectedDateKey(day.key);
                 if (!day.isCurrentMonth) {
@@ -894,7 +980,9 @@ export function UserScheduleCalendar({
                 isSelected
                   ? 'border-[color:var(--ring)] bg-[color:rgba(27,77,62,0.1)] hover:brightness-105'
                   : 'border-[rgba(20,18,21,0.09)] bg-white/80 hover:translate-y-[-1px] hover:border-[rgba(20,18,21,0.25)] hover:shadow-[0_6px_14px_rgba(20,18,21,0.14)]',
-                day.isCurrentMonth ? 'text-[color:var(--ink)]' : 'text-[rgba(20,18,21,0.4)]',
+                day.isCurrentMonth
+                  ? 'text-[color:var(--ink)]'
+                  : 'text-[rgba(20,18,21,0.4)]',
               ].join(' ')}
             >
               <div className="flex items-center justify-between text-xs font-semibold">
@@ -914,6 +1002,60 @@ export function UserScheduleCalendar({
           );
         })}
       </div>
+
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={addSlotFromForm}
+      >
+        <label className="grid gap-1 text-xs">
+          Add a slot for
+          <select
+            className={`${selectBaseStyles} px-3 py-2 text-sm`}
+            value={slotScope}
+            onChange={(event) => setSlotScope(event.target.value)}
+          >
+            <option value="day">Selected date ({selectedDateKey})</option>
+            <option value="weekdays">Every day each week</option>
+            {orderedWeekdayIndexes.map((weekday) => (
+              <option key={weekday} value={weekday}>
+                {weekDayLabels[weekday]} each week
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs">
+          Start time
+          <Input
+            type="time"
+            required
+            min="07:00"
+            max="20:30"
+            step={1800}
+            value={slotStart}
+            onChange={(event) => setSlotStart(event.target.value)}
+          />
+        </label>
+        <label className="grid gap-1 text-xs">
+          End time
+          <Input
+            type="time"
+            required
+            min="07:30"
+            max="21:00"
+            step={1800}
+            value={slotEnd}
+            onChange={(event) => setSlotEnd(event.target.value)}
+          />
+        </label>
+        <Button
+          variant="ghost"
+          size="sm"
+          type="submit"
+          disabled={!slotStart || !slotEnd || slotEnd <= slotStart}
+        >
+          Add slot
+        </Button>
+      </form>
 
       <div className="rounded-md border border-[rgba(20,18,21,0.12)] bg-[rgba(20,18,21,0.02)] p-3">
         <p className="text-xs tracking-[0.25em] text-[rgba(20,18,21,0.5)] uppercase">
@@ -944,7 +1086,7 @@ export function UserScheduleCalendar({
           </div>
 
           <div
-            className="relative overflow-hidden rounded-md border border-[rgba(20,18,21,0.12)] bg-white/85 touch-none"
+            className="relative touch-none overflow-hidden rounded-md border border-[rgba(20,18,21,0.12)] bg-white/85"
             style={{
               height: `${timelineHeightPx}px`,
               backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${timelineRowHeightPx - 1}px, rgba(20,18,21,0.07) ${timelineRowHeightPx - 1}px, rgba(20,18,21,0.07) ${timelineRowHeightPx}px)`,
@@ -978,12 +1120,12 @@ export function UserScheduleCalendar({
                 <div
                   key={`day-timeline-${block.displayId}`}
                   className={[
-                    'pointer-events-none absolute left-1 right-1 rounded border px-2 text-left text-[10px] font-semibold',
+                    'pointer-events-none absolute right-1 left-1 rounded border px-2 text-left text-[10px] font-semibold',
                     block.hasWeekly && block.hasDaySpecific
                       ? 'border-[rgba(74,63,44,0.88)] bg-[linear-gradient(135deg,rgba(27,77,62,0.9)_0%,rgba(27,77,62,0.88)_46%,rgba(255,107,53,0.9)_54%,rgba(255,107,53,0.9)_100%)] text-white'
                       : block.hasWeekly
-                      ? 'border-[rgba(27,77,62,0.8)] bg-[rgba(27,77,62,0.85)] text-white'
-                      : 'border-[rgba(255,107,53,0.75)] bg-[rgba(255,107,53,0.85)] text-[color:var(--ink)]',
+                        ? 'border-[rgba(27,77,62,0.8)] bg-[rgba(27,77,62,0.85)] text-white'
+                        : 'border-[rgba(255,107,53,0.75)] bg-[rgba(255,107,53,0.85)] text-[color:var(--ink)]',
                   ].join(' ')}
                   style={{ top: `${top}px`, height: `${height}px` }}
                   title={`${formatMinutesLabel(block.startMinute, clockFormat)} - ${formatMinutesLabel(block.endMinute, clockFormat)}${
@@ -1043,7 +1185,7 @@ export function UserScheduleCalendar({
               return (
                 <div
                   key={`day-disabled-${entry.slot.id}-${entry.index}`}
-                  className="pointer-events-none absolute left-1 right-1 rounded border border-dashed border-[rgba(20,18,21,0.35)] bg-[rgba(20,18,21,0.08)] px-2 text-left text-[10px] font-semibold text-[rgba(20,18,21,0.75)]"
+                  className="pointer-events-none absolute right-1 left-1 rounded border border-dashed border-[rgba(20,18,21,0.35)] bg-[rgba(20,18,21,0.08)] px-2 text-left text-[10px] font-semibold text-[rgba(20,18,21,0.75)]"
                   style={{ top: `${top}px`, height: `${height}px` }}
                   title={`${formatMinutesLabel(entry.startMinute, clockFormat)} - ${formatMinutesLabel(entry.endMinute, clockFormat)} · Disabled default`}
                 >
@@ -1067,7 +1209,7 @@ export function UserScheduleCalendar({
 
             {dayDraftRange ? (
               <div
-                className="pointer-events-none absolute left-1 right-1 rounded border border-dashed border-[color:var(--ring)] bg-[color:rgba(27,77,62,0.18)]"
+                className="pointer-events-none absolute right-1 left-1 rounded border border-dashed border-[color:var(--ring)] bg-[color:rgba(27,77,62,0.18)]"
                 style={{
                   top: `${minuteToY(dayDraftRange.startMinute)}px`,
                   height: `${Math.max(
@@ -1109,12 +1251,17 @@ export function UserScheduleCalendar({
             </div>
 
             <div className="mt-2 grid grid-cols-[3rem_repeat(7,minmax(0,1fr))] gap-2">
-              <div className="relative" style={{ height: `${timelineHeightPx}px` }}>
+              <div
+                className="relative"
+                style={{ height: `${timelineHeightPx}px` }}
+              >
                 {timelineHourTicks.map((hour) => (
                   <span
                     key={hour}
                     className="absolute right-1 text-[10px] text-[rgba(20,18,21,0.55)]"
-                    style={{ top: `${Math.max(0, minuteToY(hour * 60) - 7)}px` }}
+                    style={{
+                      top: `${Math.max(0, minuteToY(hour * 60) - 7)}px`,
+                    }}
                   >
                     {formatHourLabel(hour, clockFormat)}
                   </span>
@@ -1123,7 +1270,8 @@ export function UserScheduleCalendar({
 
               {orderedWeekdayIndexes.map((weekday) => {
                 const label = weekDayLabels[weekday];
-                const dayTemplates = weeklyTemplatesByWeekday.get(weekday) ?? [];
+                const dayTemplates =
+                  weeklyTemplatesByWeekday.get(weekday) ?? [];
                 const draftRange =
                   weekDrawState && weekDrawState.weekday === weekday
                     ? normalizeDrawRange(
@@ -1135,7 +1283,7 @@ export function UserScheduleCalendar({
                 return (
                   <div
                     key={label}
-                    className="relative overflow-hidden rounded-md border border-[rgba(20,18,21,0.12)] bg-white/85 touch-none"
+                    className="relative touch-none overflow-hidden rounded-md border border-[rgba(20,18,21,0.12)] bg-white/85"
                     style={{
                       height: `${timelineHeightPx}px`,
                       backgroundImage: `repeating-linear-gradient(to bottom, transparent, transparent ${timelineRowHeightPx - 1}px, rgba(20,18,21,0.07) ${timelineRowHeightPx - 1}px, rgba(20,18,21,0.07) ${timelineRowHeightPx}px)`,
@@ -1175,7 +1323,7 @@ export function UserScheduleCalendar({
                         <div
                           key={`${entry.slot.id}-${entry.index}`}
                           className={[
-                            'pointer-events-none absolute left-1 right-1 rounded border px-2 text-left text-[10px] font-semibold',
+                            'pointer-events-none absolute right-1 left-1 rounded border px-2 text-left text-[10px] font-semibold',
                             entry.enabled
                               ? 'border-[rgba(27,77,62,0.8)] bg-[rgba(27,77,62,0.9)] text-white'
                               : 'border-[rgba(20,18,21,0.25)] bg-[rgba(20,18,21,0.18)] text-[rgba(20,18,21,0.85)]',
@@ -1183,8 +1331,8 @@ export function UserScheduleCalendar({
                           style={{ top: `${top}px`, height: `${height}px` }}
                         >
                           <span className="block truncate pr-4 leading-4">
-                            {formatMinutesLabel(entry.startMinute, clockFormat)} -{' '}
-                            {formatMinutesLabel(entry.endMinute, clockFormat)}
+                            {formatMinutesLabel(entry.startMinute, clockFormat)}{' '}
+                            - {formatMinutesLabel(entry.endMinute, clockFormat)}
                           </span>
                           <div className="pointer-events-auto absolute top-0 right-0">
                             <ActionIconButton
@@ -1203,7 +1351,7 @@ export function UserScheduleCalendar({
 
                     {draftRange ? (
                       <div
-                        className="pointer-events-none absolute left-1 right-1 rounded border border-dashed border-[color:var(--ring)] bg-[color:rgba(27,77,62,0.18)]"
+                        className="pointer-events-none absolute right-1 left-1 rounded border border-dashed border-[color:var(--ring)] bg-[color:rgba(27,77,62,0.18)]"
                         style={{
                           top: `${minuteToY(draftRange.startMinute)}px`,
                           height: `${Math.max(

@@ -1,8 +1,8 @@
-import { uuidSchema } from '@/server/schemas/common';
+import { stringIdSchema } from '@/server/schemas/common';
 import { z } from 'zod';
 
 export const webhookIdParamsSchema = z.object({
-  webhookId: uuidSchema,
+  webhookId: stringIdSchema,
 });
 
 export const createWebhookSchema = z.object({

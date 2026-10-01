@@ -17,8 +17,12 @@ export const matchIdParams = z.object({
   matchId: uuidSchema,
 });
 
-export const calendarArtifactIdParams = z.object({
-  artifactId: uuidSchema,
+export const calendarArtifactDownloadParams = z.object({
+  artifactId: z
+    .string()
+    .endsWith('.ics')
+    .transform((value) => value.slice(0, -4))
+    .pipe(uuidSchema),
 });
 
 export const createCalendarArtifactSchema = z.object({

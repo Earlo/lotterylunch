@@ -1,7 +1,7 @@
+import { MembershipStatus, Role } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireGroupRole } from '@/server/auth/authorization';
 import { forbidden, notFound } from '@/server/http/errors';
-import { MembershipStatus, Role } from '@prisma/client';
 import crypto from 'crypto';
 
 function generateToken() {

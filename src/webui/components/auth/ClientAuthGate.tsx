@@ -15,7 +15,9 @@ export function ClientAuthGate({
   if (isPending) {
     return (
       fallback ?? (
-        <p className="text-sm text-[rgba(20,18,21,0.6)]">Loading session...</p>
+        <p role="status" className="text-sm text-[rgba(20,18,21,0.6)]">
+          Loading session...
+        </p>
       )
     );
   }

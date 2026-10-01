@@ -7,3 +7,10 @@ node_modules/
 # Docker-owned Postgres volume
 postgres-data/
 postgres-data/**
+
+# Generated build and Prisma output
+.next/
+src/generated/prisma/
+generated/prisma/
+coverage/
+package-lock.json

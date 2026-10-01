@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -82,16 +83,17 @@ enum EventStatus {
 }
 
 model User {
-  id                    String                @id @default(cuid())
-  email                 String                @unique
-  emailVerified         Boolean               @default(false)
+  id                    String                 @id @default(cuid())
+  email                 String                 @unique
+  emailVerified         Boolean                @default(false)
+  emailVerifiedAt       DateTime?
   name                  String?
-  timezone              String                @default("UTC")
+  timezone              String                 @default("UTC")
   image                 String?
   area                  String?
   shortNoticePreference ShortNoticePreference?
-  weekStartDay          WeekStartDay          @default(monday)
-  clockFormat           ClockFormat           @default(h24)
+  weekStartDay          WeekStartDay           @default(monday)
+  clockFormat           ClockFormat            @default(h24)
   authProvider          String?
   memberships           Membership[]
   calendarConnections   CalendarConnection[]
@@ -99,12 +101,12 @@ model User {
   invitesCreated        GroupInvite[]
   apiTokens             ApiToken[]
   webhooks              WebhookEndpoint[]
-  ownedGroups           Group[]               @relation("GroupOwner")
+  ownedGroups           Group[]                @relation("GroupOwner")
   accounts              Account[]
   sessions              Session[]
   Authenticator         Authenticator[]
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 }
 
 model Group {
@@ -259,10 +261,15 @@ model Account {
   refreshTokenExpiresAt DateTime?
   scope                 String?
   password              String?
+  // Preserve metadata from the previous Auth.js schema during the cutover.
+  legacyType            String?   @map("type")
+  legacyTokenType       String?   @map("token_type")
+  legacySessionState    String?   @map("session_state")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
   @@unique([providerId, accountId])
+  @@index([userId])
 }
 
 model Session {
@@ -275,6 +282,8 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -293,6 +302,7 @@ model Verification {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([identifier])
   @@map("verification")
 }
 

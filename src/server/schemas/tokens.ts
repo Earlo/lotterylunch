@@ -1,8 +1,8 @@
-import { uuidSchema } from '@/server/schemas/common';
+import { stringIdSchema } from '@/server/schemas/common';
 import { z } from 'zod';
 
 export const tokenIdParamsSchema = z.object({
-  tokenId: uuidSchema,
+  tokenId: stringIdSchema,
 });
 
 export const createApiTokenSchema = z.object({

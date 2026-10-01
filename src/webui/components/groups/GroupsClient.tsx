@@ -1,15 +1,17 @@
 'use client';
 
-import type { ApiError } from '@/webui/api/client';
+import { getErrorMessage } from '@/webui/api/client';
 import type { GroupSummary } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
 import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { createGroup, joinGroup } from '@/webui/mutations/groups';
+import { acceptInvite } from '@/webui/mutations/invites';
 import { fetchGroups } from '@/webui/queries/groups';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 
 export function GroupsClient() {
   const [groups, setGroups] = useState<GroupSummary[]>([]);
@@ -22,29 +24,34 @@ export function GroupsClient() {
   const [joinId, setJoinId] = useState('');
   const [inviteToken, setInviteToken] = useState('');
   const [busy, setBusy] = useState(false);
+  const requestVersion = useRef(0);
 
   const hasGroups = groups.length > 0;
 
-  const loadGroups = async () => {
-    setLoading(true);
+  const loadGroups = async (signal?: AbortSignal) => {
+    const version = ++requestVersion.current;
+    const isCurrent = () =>
+      !signal?.aborted && version === requestVersion.current;
     try {
-      const data = await fetchGroups();
+      const data = await fetchGroups(signal);
+      if (!isCurrent()) return;
       setGroups(data ?? []);
       setError(null);
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to load groups.');
+      if (!isCurrent()) return;
+      setError(getErrorMessage(err, 'Unable to load groups.'));
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadGroups().catch(console.error);
+  useCancelableEffect((_isCancelled, signal) => {
+    void loadGroups(signal);
   }, []);
 
-  const handleCreate = async () => {
-    if (!name.trim()) return;
+  const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy || !name.trim()) return;
     setBusy(true);
     try {
       await createGroup({
@@ -57,42 +64,42 @@ export function GroupsClient() {
       setDescription('');
       setLocation('');
       setVisibility('open');
+      setLoading(true);
       await loadGroups();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to create group.');
+      setError(getErrorMessage(err, 'Unable to create group.'));
     } finally {
       setBusy(false);
     }
   };
 
-  const handleJoin = async () => {
-    if (!joinId.trim()) return;
+  const handleJoin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy || !joinId.trim()) return;
     setBusy(true);
     try {
       await joinGroup(joinId.trim());
       setJoinId('');
+      setLoading(true);
       await loadGroups();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to join group.');
+      setError(getErrorMessage(err, 'Unable to join group.'));
     } finally {
       setBusy(false);
     }
   };
 
-  const handleAcceptInvite = async () => {
-    if (!inviteToken.trim()) return;
+  const handleAcceptInvite = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy || !inviteToken.trim()) return;
     setBusy(true);
     try {
-      await import('@/webui/mutations/invites').then(({ acceptInvite }) =>
-        acceptInvite(inviteToken.trim()),
-      );
+      await acceptInvite(inviteToken.trim());
       setInviteToken('');
+      setLoading(true);
       await loadGroups();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to accept invite.');
+      setError(getErrorMessage(err, 'Unable to accept invite.'));
     } finally {
       setBusy(false);
     }
@@ -100,21 +107,31 @@ export function GroupsClient() {
 
   return (
     <div className="grid gap-6">
-      {error ? <Notice>{error}</Notice> : null}
+      {error ? <Notice role="alert">{error}</Notice> : null}
 
       <Card title="Create a group">
-        <div className="grid gap-3">
+        <form className="grid gap-3" onSubmit={handleCreate}>
           <Input
+            aria-label="Group name"
+            disabled={busy}
+            required
+            maxLength={120}
             placeholder="Group name"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
           <Input
+            aria-label="Description (optional)"
+            disabled={busy}
+            maxLength={2000}
             placeholder="Description (optional)"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
           <Input
+            aria-label="Location (optional)"
+            disabled={busy}
+            maxLength={200}
             placeholder="Location (optional)"
             value={location}
             onChange={(event) => setLocation(event.target.value)}
@@ -122,6 +139,7 @@ export function GroupsClient() {
           <label className="text-xs text-[rgba(20,18,21,0.7)]">
             Visibility
             <select
+              disabled={busy}
               className="mt-2 w-full rounded-md border border-[rgba(20,18,21,0.2)] bg-white/80 px-4 py-2 text-sm text-(--ink) shadow-sm transition focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-(--haze) focus-visible:outline-none"
               value={visibility}
               onChange={(event) =>
@@ -133,34 +151,48 @@ export function GroupsClient() {
             </select>
           </label>
           <div>
-            <Button variant="accent" onClick={handleCreate} disabled={busy}>
+            <Button
+              variant="accent"
+              type="submit"
+              disabled={busy || !name.trim()}
+            >
               Create group
             </Button>
           </div>
-        </div>
+        </form>
       </Card>
 
       <Card title="Join a group">
-        <div className="grid gap-3">
+        <form className="grid gap-3" onSubmit={handleJoin}>
           <Input
+            aria-label="Group ID"
+            disabled={busy}
+            required
             placeholder="Group ID"
             value={joinId}
             onChange={(event) => setJoinId(event.target.value)}
           />
           <div>
-            <Button variant="ghost" onClick={handleJoin} disabled={busy}>
+            <Button
+              variant="ghost"
+              type="submit"
+              disabled={busy || !joinId.trim()}
+            >
               Join group
             </Button>
           </div>
           <p className="text-xs text-[rgba(20,18,21,0.6)]">
             Use the group ID from an invite or ask a group owner to share it.
           </p>
-        </div>
+        </form>
       </Card>
 
       <Card title="Accept invite token">
-        <div className="grid gap-3">
+        <form className="grid gap-3" onSubmit={handleAcceptInvite}>
           <Input
+            aria-label="Invite token"
+            disabled={busy}
+            required
             placeholder="Invite token"
             value={inviteToken}
             onChange={(event) => setInviteToken(event.target.value)}
@@ -168,18 +200,20 @@ export function GroupsClient() {
           <div>
             <Button
               variant="ghost"
-              onClick={handleAcceptInvite}
-              disabled={busy}
+              type="submit"
+              disabled={busy || !inviteToken.trim()}
             >
               Accept invite
             </Button>
           </div>
-        </div>
+        </form>
       </Card>
 
       <Card title="Your groups">
         {loading ? (
-          <p className="text-sm text-[rgba(20,18,21,0.6)]">Loading groups...</p>
+          <p role="status" className="text-sm text-[rgba(20,18,21,0.6)]">
+            Loading groups...
+          </p>
         ) : hasGroups ? (
           <ul className="grid gap-3">
             {groups.map((group) => (
@@ -188,7 +222,7 @@ export function GroupsClient() {
                 className="rounded-md border border-[rgba(20,18,21,0.12)] bg-white/70 px-4 py-3"
               >
                 <Link
-                  href={`/portal/groups/${group.id}`}
+                  href={`/portal/groups/${encodeURIComponent(group.id)}`}
                   className="text-sm font-semibold text-(--ink) underline-offset-4 hover:underline"
                 >
                   {group.name}
@@ -201,7 +235,7 @@ export function GroupsClient() {
                     variant="ghost"
                     size="sm"
                     as={Link}
-                    href={`/portal/groups/${group.id}`}
+                    href={`/portal/groups/${encodeURIComponent(group.id)}`}
                   >
                     Manage
                   </Button>

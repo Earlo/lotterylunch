@@ -2,53 +2,73 @@
   "name": "lotterylunch",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "next build",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run build",
     "db:deploy": "prisma migrate deploy",
-    "dev": "docker compose up --build",
-    "dev:app": "next dev --turbopack",
-    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"*.{ts,tsx,js,jsx,mjs,cjs}\"",
-    "prettier": "prettier --write . '!./postgres-data/**'",
+    "dev": "docker compose up",
+    "dev:app": "next dev",
+    "format": "prettier --write src tests docs .github \"*.{json,ts,mjs,md,yml}\" .prettierrc",
+    "format:check": "prettier --check src tests docs .github \"*.{json,ts,mjs,md,yml}\" .prettierrc",
+    "postinstall": "prisma generate",
+    "lint": "eslint . --max-warnings=0",
+    "prettier": "npm run format",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset",
     "start": "next start",
-    "test:webui": "node --test tests/webui.*.test.mjs"
+    "test": "npm run test:webui && npm run test:server",
+    "test:migrations": "node --test tests/migrations.integration.mjs",
+    "test:server": "node --import tsx --test tests/server.*.test.ts",
+    "test:webui": "node --import tsx --test tests/webui.*.test.mjs",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    },
+    "prisma": {
+      "mysql2": "3.24.5"
+    }
   },
   "dependencies": {
-    "@prisma/adapter-pg": "7.8.0",
-    "@prisma/client": "7.8.0",
-    "@prisma/config": "7.8.0",
-    "better-auth": "1.6.11",
-    "next": "16.2.6",
-    "pg": "8.21.0",
-    "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "zod": "4.4.3"
+    "@better-auth/prisma-adapter": "1.7.7",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "better-auth": "1.7.7",
+    "next": "16.3.8",
+    "pg": "8.23.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "4.3.0",
-    "@types/node": "25.9.1",
-    "@types/react": "19.2.15",
-    "@typescript-eslint/eslint-plugin": "8.59.4",
-    "@typescript-eslint/parser": "8.59.4",
-    "eslint-config-next": "16.2.6",
+    "@eslint/js": "9.39.5",
+    "@next/env": "16.3.8",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.19.0",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.8",
     "eslint-config-prettier": "10.1.8",
-    "eslint-import-resolver-typescript": "4.4.4",
+    "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-import": "2.32.0",
-    "eslint-plugin-security": "4.0.0",
-    "eslint-plugin-sonarjs": "4.0.3",
-    "eslint-plugin-unused-imports": "4.4.1",
-    "postcss": "8.5.15",
-    "prettier": "3.8.3",
+    "globals": "17.13.0",
+    "postcss": "8.5.28",
+    "prettier": "3.9.9",
     "prettier-plugin-organize-imports": "4.3.0",
     "prettier-plugin-packagejson": "3.0.2",
-    "prettier-plugin-tailwindcss": "0.8.0",
-    "prisma": "7.8.0",
-    "tailwindcss": "4.3.0",
-    "typescript": "6.0.3"
+    "prettier-plugin-tailwindcss": "0.8.1",
+    "prisma": "7.10.0",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0"
   },
   "engines": {
-    "node": "24.x || 25.x"
+    "node": "^24.0.0 || ^26.0.0"
   }
 }

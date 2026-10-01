@@ -1,4 +1,8 @@
-import { nonEmptyString, uuidSchema } from '@/server/schemas/common';
+import {
+  nonEmptyString,
+  stringIdSchema,
+  uuidSchema,
+} from '@/server/schemas/common';
 import { z } from 'zod';
 
 export const groupIdParamsSchema = z.object({
@@ -11,7 +15,7 @@ export const membershipIdParamsSchema = z.object({
 });
 
 export const createMembershipSchema = z.object({
-  userId: uuidSchema.optional(),
+  userId: stringIdSchema.optional(),
   role: z.enum(['owner', 'admin', 'member']).optional(),
   status: z.enum(['pending', 'active', 'suspended']).optional(),
   note: nonEmptyString.max(500).optional(),

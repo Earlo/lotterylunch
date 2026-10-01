@@ -1,58 +1,67 @@
-export type ApiError = {
-  status: number;
-  message: string;
-  details?: unknown;
-};
+export class ApiError extends Error {
+  readonly status: number;
+  readonly details?: unknown;
 
-type ZodIssue = {
-  path?: Array<string | number>;
-  message?: string;
-};
+  constructor(status: number, message: string, details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.details = details;
+  }
+}
 
-function summarizeIssues(issues?: ZodIssue[]) {
-  if (!issues || issues.length === 0) return null;
-  const summaries = issues.slice(0, 3).map((issue) => {
-    const path = issue.path?.length ? issue.path.join('.') : 'request';
-    return `${path}: ${issue.message ?? 'Invalid value'}`;
-  });
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+export function getErrorMessage(error: unknown, fallback: string): string {
+  return isRecord(error) &&
+    typeof error.message === 'string' &&
+    error.message.trim()
+    ? error.message
+    : fallback;
+}
+
+function summarizeIssues(details: unknown) {
+  if (!isRecord(details) || !Array.isArray(details.issues)) return null;
+  const summaries = details.issues
+    .filter(isRecord)
+    .slice(0, 3)
+    .map((issue) => {
+      const path =
+        Array.isArray(issue.path) && issue.path.length
+          ? issue.path
+              .filter(
+                (part) => typeof part === 'string' || typeof part === 'number',
+              )
+              .join('.')
+          : 'request';
+      return `${path || 'request'}: ${getErrorMessage(issue, 'Invalid value')}`;
+    });
   return summaries.join('; ');
 }
 
 async function parseError(response: Response): Promise<ApiError> {
+  const fallback =
+    response.statusText || `Request failed (HTTP ${response.status}).`;
   try {
-    const payload = (await response.json()) as {
-      error?: string | { message?: string; details?: unknown };
-      details?: unknown;
-    };
+    const payload: unknown = await response.json();
+    if (!isRecord(payload)) return new ApiError(response.status, fallback);
     const errorMessage =
-      typeof payload?.error === 'string'
+      typeof payload.error === 'string' && payload.error.trim()
         ? payload.error
-        : payload?.error?.message;
+        : getErrorMessage(payload.error, fallback);
     const errorDetails =
-      typeof payload?.error === 'object' && payload?.error?.details
+      isRecord(payload.error) && 'details' in payload.error
         ? payload.error.details
-        : payload?.details;
-    const issueSummary = summarizeIssues(
-      (typeof payload?.error === 'object'
-        ? (payload.error?.details as { issues?: ZodIssue[] } | undefined)
-            ?.issues
-        : undefined) ??
-        (payload?.details as { issues?: ZodIssue[] } | undefined)?.issues,
-    );
-    const messageBase = errorMessage ?? response.statusText;
+        : payload.details;
+    const issueSummary = summarizeIssues(errorDetails);
     const message = issueSummary
-      ? `${messageBase}: ${issueSummary}`
-      : messageBase;
-    return {
-      status: response.status,
-      message,
-      details: errorDetails,
-    };
+      ? `${errorMessage}: ${issueSummary}`
+      : errorMessage;
+    return new ApiError(response.status, message, errorDetails);
   } catch {
-    return {
-      status: response.status,
-      message: response.statusText,
-    };
+    return new ApiError(response.status, fallback);
   }
 }
 
@@ -60,12 +69,19 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (
+    init?.body != null &&
+    !headers.has('Content-Type') &&
+    typeof init.body === 'string'
+  ) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+
   const response = await fetch(path, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!response.ok) {

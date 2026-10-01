@@ -18,7 +18,7 @@ export async function createGroup(
 }
 
 export async function joinGroup(groupId: string): Promise<void> {
-  await apiFetch(`/api/v1/groups/${groupId}/memberships`, {
+  await apiFetch(`/api/v1/groups/${encodeURIComponent(groupId)}/memberships`, {
     method: 'POST',
     body: JSON.stringify({}),
   });

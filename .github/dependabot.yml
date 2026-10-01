@@ -1,15 +1,33 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:
-      interval: 'daily'
-    allow:
-      - dependency-type: 'all'
-    versioning-strategy: 'widen'
-    open-pull-requests-limit: 10
+      interval: 'weekly'
+    versioning-strategy: 'increase'
+    groups:
+      next:
+        patterns: ['next', 'eslint-config-next', '@next/env']
+      react:
+        patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
+      prisma:
+        patterns: ['prisma', '@prisma/*']
+      better-auth:
+        patterns: ['better-auth', '@better-auth/*']
+      tailwind:
+        patterns: ['tailwindcss', '@tailwindcss/*']
+    ignore:
+      # TypeScript 7 is outside typescript-eslint's supported peer range.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
+      # eslint-plugin-import currently supports ESLint through v9.
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

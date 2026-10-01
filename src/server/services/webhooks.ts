@@ -1,3 +1,4 @@
+import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { notFound } from '@/server/http/errors';
 import crypto from 'crypto';
@@ -55,7 +56,7 @@ export async function deleteWebhook(userId: string, id: string) {
 export async function emitWebhookEvent(
   userId: string,
   event: string,
-  payload: Record<string, unknown>,
+  payload: Prisma.InputJsonObject,
 ) {
   const endpoints = await prisma.webhookEndpoint.findMany({
     where: {

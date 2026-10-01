@@ -1,3 +1,4 @@
-set -e
+#!/usr/bin/env sh
+set -eu
 
-docker compose -f docker-compose.yml up --build --force-recreate
+exec docker compose -f docker-compose.yml up "$@"

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiError } from '@/webui/api/client';
+import { getErrorMessage } from '@/webui/api/client';
 import type { AvailabilitySlot, GroupSummary } from '@/webui/api/types';
 import { UserScheduleCalendar } from '@/webui/components/settings/UserScheduleCalendar';
 import {
@@ -41,7 +41,10 @@ function parseDateKey(dateKey: string) {
 }
 
 function normalizeRange(startMinute: number, endMinute: number) {
-  const boundedStart = Math.max(0, Math.min(startMinute, 24 * 60 - minimumSlotMinutes));
+  const boundedStart = Math.max(
+    0,
+    Math.min(startMinute, 24 * 60 - minimumSlotMinutes),
+  );
   const boundedEnd = Math.max(
     boundedStart + minimumSlotMinutes,
     Math.min(endMinute, 24 * 60),
@@ -102,53 +105,69 @@ export function AvailabilitySettings() {
   );
   const [clockFormat, setClockFormat] = useState<'h24' | 'ampm'>('h24');
   const [lastSavedSignature, setLastSavedSignature] = useState('');
-  const slotSignature = useMemo(() => serializeSlotsForDirtyCheck(slots), [slots]);
-  const hasUnsavedChanges =
-    status !== 'loading' && slotSignature !== lastSavedSignature;
+  const [loaded, setLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const slotSignature = useMemo(
+    () => serializeSlotsForDirtyCheck(slots),
+    [slots],
+  );
+  const hasUnsavedChanges = loaded && slotSignature !== lastSavedSignature;
 
-  useCancelableEffect((isCancelled) => {
-    Promise.allSettled([fetchAvailability(), fetchGroups(), fetchUserProfile()])
-      .then((results) => {
-        if (isCancelled()) return;
-        const [availabilityResult, groupsResult, profileResult] = results;
+  useCancelableEffect(
+    (isCancelled, signal) => {
+      Promise.allSettled([
+        fetchAvailability(undefined, signal),
+        fetchGroups(signal),
+        fetchUserProfile(signal),
+      ])
+        .then((results) => {
+          if (isCancelled()) return;
+          const [availabilityResult, groupsResult, profileResult] = results;
 
-        if (availabilityResult.status === 'fulfilled') {
-          setSlots(availabilityResult.value);
-          setLastSavedSignature(
-            serializeSlotsForDirtyCheck(availabilityResult.value),
-          );
-          setError(null);
-          setStatus('idle');
-        } else {
-          const apiError = availabilityResult.reason as ApiError;
-          setError(apiError.message ?? 'Unable to load preferred times.');
+          if (availabilityResult.status === 'fulfilled') {
+            setSlots(availabilityResult.value);
+            setLastSavedSignature(
+              serializeSlotsForDirtyCheck(availabilityResult.value),
+            );
+            setError(null);
+            setStatus('idle');
+            setLoaded(true);
+          } else {
+            setError(
+              getErrorMessage(
+                availabilityResult.reason,
+                'Unable to load preferred times.',
+              ),
+            );
+            setStatus('error');
+          }
+
+          if (groupsResult.status === 'fulfilled') {
+            setGroups(groupsResult.value);
+            setGroupError(null);
+          } else {
+            setGroupError(
+              getErrorMessage(groupsResult.reason, 'Unable to load groups.'),
+            );
+          }
+
+          if (profileResult.status === 'fulfilled') {
+            if (profileResult.value.weekStartDay) {
+              setWeekStartDay(profileResult.value.weekStartDay);
+            }
+            if (profileResult.value.clockFormat) {
+              setClockFormat(profileResult.value.clockFormat);
+            }
+          }
+        })
+        .catch((err) => {
+          if (isCancelled()) return;
+          setError(getErrorMessage(err, 'Unable to load preferred times.'));
           setStatus('error');
-        }
-
-        if (groupsResult.status === 'fulfilled') {
-          setGroups(groupsResult.value);
-          setGroupError(null);
-        } else {
-          const apiError = groupsResult.reason as ApiError;
-          setGroupError(apiError.message ?? 'Unable to load groups.');
-        }
-
-        if (profileResult.status === 'fulfilled') {
-          if (profileResult.value.weekStartDay) {
-            setWeekStartDay(profileResult.value.weekStartDay);
-          }
-          if (profileResult.value.clockFormat) {
-            setClockFormat(profileResult.value.clockFormat);
-          }
-        }
-      })
-      .catch((err) => {
-        if (isCancelled()) return;
-        const apiError = err as ApiError;
-        setError(apiError.message ?? 'Unable to load preferred times.');
-        setStatus('error');
-      });
-  }, []);
+        });
+    },
+    [loadAttempt],
+  );
 
   const getDayContext = (
     currentSlots: AvailabilitySlot[],
@@ -255,7 +274,11 @@ export function AvailabilitySettings() {
 
       for (const [index, slot] of currentSlots.entries()) {
         const parsedRule = parseWeeklyTemplateRule(slot.recurringRule);
-        if (!parsedRule || parsedRule.weekday !== weekday || !parsedRule.enabled) {
+        if (
+          !parsedRule ||
+          parsedRule.weekday !== weekday ||
+          !parsedRule.enabled
+        ) {
           continue;
         }
 
@@ -276,7 +299,10 @@ export function AvailabilitySettings() {
           continue;
         }
 
-        if (slot.type !== newSlotType || (slot.groupId ?? null) !== newSlotGroupId) {
+        if (
+          slot.type !== newSlotType ||
+          (slot.groupId ?? null) !== newSlotGroupId
+        ) {
           hasIncompatibleOverlap = true;
           continue;
         }
@@ -297,7 +323,8 @@ export function AvailabilitySettings() {
     if (hasIncompatibleOverlap) {
       return {
         nextSlots: currentSlots,
-        error: 'Overlapping weekly slots with different type/group cannot be auto-merged.',
+        error:
+          'Overlapping weekly slots with different type/group cannot be auto-merged.',
       };
     }
 
@@ -310,7 +337,9 @@ export function AvailabilitySettings() {
     const endAt = new Date(anchorDate);
     endAt.setMinutes(mergedEnd);
 
-    const nextSlots = currentSlots.filter((_, index) => !mergeableIndices.has(index));
+    const nextSlots = currentSlots.filter(
+      (_, index) => !mergeableIndices.has(index),
+    );
     nextSlots.push({
       id: `local-weekly-${weekday}-${mergedStart}-${mergedEnd}-${Date.now()}`,
       userId: 'me',
@@ -350,7 +379,12 @@ export function AvailabilitySettings() {
     let nextSlots = slots;
 
     for (let weekday = 0; weekday < 7; weekday += 1) {
-      const result = mergeWeeklySlotInto(nextSlots, weekday, startMinute, endMinute);
+      const result = mergeWeeklySlotInto(
+        nextSlots,
+        weekday,
+        startMinute,
+        endMinute,
+      );
       if (result.error) {
         setError(result.error);
         return;
@@ -402,7 +436,10 @@ export function AvailabilitySettings() {
           continue;
         }
 
-        if (slot.type !== newSlotType || (slot.groupId ?? null) !== newSlotGroupId) {
+        if (
+          slot.type !== newSlotType ||
+          (slot.groupId ?? null) !== newSlotGroupId
+        ) {
           hasIncompatibleOverlap = true;
           continue;
         }
@@ -490,7 +527,12 @@ export function AvailabilitySettings() {
     const dayContext = getDayContext(slots, dateKey);
 
     const hasOverlap = dayContext.activeIntervals.some((interval) =>
-      rangesOverlap(startMinute, endMinute, interval.startMinute, interval.endMinute),
+      rangesOverlap(
+        startMinute,
+        endMinute,
+        interval.startMinute,
+        interval.endMinute,
+      ),
     );
 
     if (hasOverlap) {
@@ -546,6 +588,7 @@ export function AvailabilitySettings() {
   };
 
   const handleSave = async () => {
+    if (!loaded || status === 'saving' || !hasUnsavedChanges) return;
     const signatureAtSaveStart = slotSignature;
     setStatus('saving');
     setError(null);
@@ -560,8 +603,7 @@ export function AvailabilitySettings() {
       setLastSavedSignature(signatureAtSaveStart);
       setStatus('saved');
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to save preferred times.');
+      setError(getErrorMessage(err, 'Unable to save preferred times.'));
       setStatus('error');
     }
   };
@@ -579,46 +621,68 @@ export function AvailabilitySettings() {
         </p>
       </div>
 
-      <UserScheduleCalendar
-        slots={slots}
-        groups={groups}
-        weekStartDay={weekStartDay}
-        clockFormat={clockFormat}
-        onCreateWeeklySlot={createWeeklySlot}
-        onCreateWeeklySlotForAllWeekdays={createWeeklySlotForAllWeekdays}
-        onDeleteSlot={deleteSlot}
-        onCreateDaySlot={createDaySlot}
-        onDisableWeeklySlotForDay={disableWeeklySlotForDay}
-        onEnableWeeklySlotForDay={enableWeeklySlotForDay}
-      />
+      {loaded ? (
+        <div inert={status === 'saving'} aria-busy={status === 'saving'}>
+          <UserScheduleCalendar
+            slots={slots}
+            groups={groups}
+            weekStartDay={weekStartDay}
+            clockFormat={clockFormat}
+            onCreateWeeklySlot={createWeeklySlot}
+            onCreateWeeklySlotForAllWeekdays={createWeeklySlotForAllWeekdays}
+            onDeleteSlot={deleteSlot}
+            onCreateDaySlot={createDaySlot}
+            onDisableWeeklySlotForDay={disableWeeklySlotForDay}
+            onEnableWeeklySlotForDay={enableWeeklySlotForDay}
+          />
+        </div>
+      ) : null}
 
       <div className="flex items-center gap-2">
-        <span
-          className={[
-            'inline-flex rounded-sm px-2 py-1 text-xs font-semibold',
-            hasUnsavedChanges
-              ? 'bg-[rgba(255,107,53,0.14)] text-[rgba(132,58,22,1)]'
-              : 'bg-[rgba(27,77,62,0.12)] text-[rgba(20,70,56,0.96)]',
-          ].join(' ')}
-        >
-          {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
-        </span>
+        {loaded ? (
+          <span
+            className={[
+              'inline-flex rounded-sm px-2 py-1 text-xs font-semibold',
+              hasUnsavedChanges
+                ? 'bg-[rgba(255,107,53,0.14)] text-[rgba(132,58,22,1)]'
+                : 'bg-[rgba(27,77,62,0.12)] text-[rgba(20,70,56,0.96)]',
+            ].join(' ')}
+          >
+            {hasUnsavedChanges ? 'Unsaved changes' : 'All changes saved'}
+          </span>
+        ) : null}
         <Button
           variant="ghost"
           size="sm"
           onClick={handleSave}
-          disabled={status === 'saving' || !hasUnsavedChanges}
+          disabled={!loaded || status === 'saving' || !hasUnsavedChanges}
         >
           {status === 'saving' ? 'Saving...' : 'Save availability'}
         </Button>
       </div>
 
-      {status === 'loading' ? <Notice>Loading preferred times...</Notice> : null}
+      {status === 'loading' ? (
+        <Notice>Loading preferred times...</Notice>
+      ) : null}
       {status === 'saved' && !hasUnsavedChanges ? (
         <Notice>Preferred times saved.</Notice>
       ) : null}
-      {error ? <Notice>{error}</Notice> : null}
-      {groupError ? <Notice>{groupError}</Notice> : null}
+      {error ? <Notice role="alert">{error}</Notice> : null}
+      {!loaded && error ? (
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setError(null);
+              setStatus('loading');
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Retry loading preferred times
+          </Button>
+        </div>
+      ) : null}
+      {groupError ? <Notice role="alert">{groupError}</Notice> : null}
     </div>
   );
 }

@@ -1,13 +1,14 @@
 'use client';
 
 import { authClient } from '@/lib/auth-client';
-import type { ApiError } from '@/webui/api/client';
+import { getErrorMessage } from '@/webui/api/client';
 import { Button } from '@/webui/components/ui/Button';
 import { Input } from '@/webui/components/ui/Input';
 import { Notice } from '@/webui/components/ui/Notice';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { updateUserProfile } from '@/webui/mutations/user';
 import { fetchUserProfile } from '@/webui/queries/user';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 
 export function AccountSettings() {
   const { data: session } = authClient.useSession();
@@ -19,21 +20,29 @@ export function AccountSettings() {
     'idle',
   );
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    fetchUserProfile()
-      .then((profile) => {
-        setName(profile.name ?? session.user?.name ?? '');
-        setTimezone(profile.timezone ?? '');
-        setArea(profile.area ?? '');
-        setPhotoUrl(profile.image ?? '');
-      })
-      .catch((err) => {
-        const apiError = err as ApiError;
-        setError(apiError.message ?? 'Unable to load profile.');
-      });
-  }, [session?.user?.id, session?.user?.name]);
+  useCancelableEffect(
+    (isCancelled, signal) => {
+      if (!session?.user?.id) return;
+      fetchUserProfile(signal)
+        .then((profile) => {
+          if (isCancelled()) return;
+          setName(profile.name ?? session.user?.name ?? '');
+          setTimezone(profile.timezone ?? '');
+          setArea(profile.area ?? '');
+          setPhotoUrl(profile.image ?? '');
+          setError(null);
+          setLoaded(true);
+        })
+        .catch((err) => {
+          if (isCancelled()) return;
+          setError(getErrorMessage(err, 'Unable to load profile.'));
+        });
+    },
+    [session?.user?.id, loadAttempt],
+  );
 
   const email = session?.user?.email ?? 'Signed-in user';
   const canSave = useMemo(
@@ -42,7 +51,9 @@ export function AccountSettings() {
     [name, timezone, area, photoUrl],
   );
 
-  const handleSave = async () => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!loaded || !canSave || status === 'saving') return;
     setStatus('saving');
     setError(null);
     try {
@@ -54,14 +65,13 @@ export function AccountSettings() {
       });
       setStatus('saved');
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to save profile.');
+      setError(getErrorMessage(err, 'Unable to save profile.'));
       setStatus('error');
     }
   };
 
   return (
-    <div className="grid gap-4">
+    <form className="grid gap-4" onSubmit={handleSave}>
       <div>
         <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">
           Account
@@ -72,7 +82,10 @@ export function AccountSettings() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <fieldset
+        disabled={!loaded || status === 'saving'}
+        className="grid gap-3 sm:grid-cols-2"
+      >
         <label className="text-sm">
           Name
           <Input
@@ -80,6 +93,8 @@ export function AccountSettings() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Ada Lovelace"
+            autoComplete="name"
+            maxLength={120}
           />
         </label>
         <label className="text-sm">
@@ -93,6 +108,7 @@ export function AccountSettings() {
             value={timezone}
             onChange={(event) => setTimezone(event.target.value)}
             placeholder="America/Los_Angeles"
+            maxLength={80}
           />
         </label>
         <label className="text-sm">
@@ -102,6 +118,7 @@ export function AccountSettings() {
             value={area}
             onChange={(event) => setArea(event.target.value)}
             placeholder="Downtown SF"
+            maxLength={120}
           />
         </label>
         <label className="text-sm sm:col-span-2">
@@ -111,21 +128,36 @@ export function AccountSettings() {
             value={photoUrl}
             onChange={(event) => setPhotoUrl(event.target.value)}
             placeholder="https://"
+            type="url"
           />
         </label>
-      </div>
+      </fieldset>
 
       <div>
         <Button
           variant="ghost"
-          onClick={handleSave}
-          disabled={!canSave || status === 'saving'}
+          type="submit"
+          disabled={!loaded || !canSave || status === 'saving'}
         >
           {status === 'saving' ? 'Saving...' : 'Save profile'}
         </Button>
       </div>
+      {!loaded && !error ? <Notice>Loading profile...</Notice> : null}
       {status === 'saved' ? <Notice>Profile saved.</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
-    </div>
+      {error ? <Notice role="alert">{error}</Notice> : null}
+      {!loaded && error ? (
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setError(null);
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Retry loading profile
+          </Button>
+        </div>
+      ) : null}
+    </form>
   );
 }

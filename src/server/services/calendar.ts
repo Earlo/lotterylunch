@@ -1,6 +1,7 @@
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
 import { badRequest, notFound } from '@/server/http/errors';
+import { localRedirectPath } from '@/server/http/redirects';
 import {
   buildGoogleAuthUrl,
   createGoogleCalendarEvent,
@@ -56,14 +57,6 @@ export async function deleteCalendarConnection(userId: string, id: string) {
   return { id, deleted: true as const };
 }
 
-function normalizeReturnTo(value?: string | null) {
-  if (!value) return '/portal/settings';
-  if (!value.startsWith('/') || value.startsWith('//')) {
-    return '/portal/settings';
-  }
-  return value;
-}
-
 function getGoogleRedirectUri() {
   return new URL(
     '/api/v1/calendar/connections/google/callback',
@@ -77,7 +70,7 @@ export async function startGoogleCalendarConnection(
 ) {
   const state = crypto.randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  const normalizedReturnTo = normalizeReturnTo(returnTo);
+  const normalizedReturnTo = localRedirectPath(returnTo);
 
   await prisma.verification.create({
     data: {
@@ -117,7 +110,7 @@ export async function completeGoogleCalendarConnection(
     payload = {};
   }
 
-  const returnTo = normalizeReturnTo(payload.returnTo);
+  const returnTo = localRedirectPath(payload.returnTo);
   await prisma.verification.deleteMany({ where: { identifier } });
 
   const error = params.get('error');

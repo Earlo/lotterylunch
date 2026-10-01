@@ -1,3 +1,4 @@
+import { MembershipStatus, Role, Visibility } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
   requireGroupMembership,
@@ -9,7 +10,6 @@ import type {
   CreateMembershipInput,
   UpdateMembershipInput,
 } from '@/server/schemas/memberships';
-import { MembershipStatus, Role, Visibility } from '@prisma/client';
 
 export async function listMemberships(groupId: string, userId: string) {
   await requireGroupMembership(groupId, userId);

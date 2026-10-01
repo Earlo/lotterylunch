@@ -7,7 +7,7 @@ export async function updateMembership(
   input: Partial<Pick<Membership, 'role' | 'status'>>,
 ): Promise<Membership> {
   return apiFetch<Membership>(
-    `/api/v1/groups/${groupId}/memberships/${membershipId}`,
+    `/api/v1/groups/${encodeURIComponent(groupId)}/memberships/${encodeURIComponent(membershipId)}`,
     {
       method: 'PATCH',
       body: JSON.stringify(input),
@@ -20,7 +20,7 @@ export async function removeMembership(
   membershipId: string,
 ): Promise<{ id: string; deleted: true }> {
   return apiFetch<{ id: string; deleted: true }>(
-    `/api/v1/groups/${groupId}/memberships/${membershipId}`,
+    `/api/v1/groups/${encodeURIComponent(groupId)}/memberships/${encodeURIComponent(membershipId)}`,
     { method: 'DELETE' },
   );
 }

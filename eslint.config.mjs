@@ -3,7 +3,8 @@ import nextConfig from 'eslint-config-next';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import importPlugin from 'eslint-plugin-import';
 import { defineConfig } from 'eslint/config';
-import tseslint from 'typescript-eslint';
+import globals from 'globals';
+import { configs as tsConfigs } from 'typescript-eslint';
 
 const files = ['**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}'];
 
@@ -68,12 +69,31 @@ const customRules = {
 };
 
 export default defineConfig([
-  { ignores: ['**/eslint.config.*', '**/postgres-data/**'] },
+  {
+    ignores: [
+      '.next/**',
+      'out/**',
+      'build/**',
+      'coverage/**',
+      'next-env.d.ts',
+      'postgres-data/**',
+      'src/generated/prisma/**',
+      'generated/prisma/**',
+    ],
+  },
   js.configs.recommended,
   ...nextConfig,
-  ...tseslint.configs.recommended,
+  ...tsConfigs.recommended,
   importRecommendedConfig,
   importTypescriptConfig,
   prettierConfig,
   customRules,
+  {
+    files: [
+      '*.{ts,js,mjs,cjs}',
+      'tests/**/*.{ts,js,mjs}',
+      'scripts/**/*.{ts,js,mjs}',
+    ],
+    languageOptions: { globals: globals.node },
+  },
 ]);

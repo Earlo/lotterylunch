@@ -1,7 +1,7 @@
 'use client';
 
 import { authClient } from '@/lib/auth-client';
-import type { ApiError } from '@/webui/api/client';
+import { getErrorMessage } from '@/webui/api/client';
 import type { GroupDetail, GroupInvite, Membership } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Card } from '@/webui/components/ui/Card';
@@ -24,19 +24,25 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
   const [invite, setInvite] = useState<GroupInvite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const myMembership = memberships.find(
     (member) => member.userId === session?.user?.id,
   );
   const isAdmin =
-    myMembership?.role === 'owner' || myMembership?.role === 'admin';
+    myMembership?.status === 'active' &&
+    (myMembership.role === 'owner' || myMembership.role === 'admin');
   const selectStyles = `${selectBaseStyles} px-3 py-2 text-xs`;
 
-  const loadAll = async (opts?: { isCancelled?: () => boolean }) => {
+  const loadAll = async (opts?: {
+    isCancelled?: () => boolean;
+    signal?: AbortSignal;
+  }) => {
     const isCancelled = opts?.isCancelled ?? (() => false);
     try {
       const [groupData, membershipData] = await Promise.all([
-        fetchGroup(groupId),
-        fetchMemberships(groupId),
+        fetchGroup(groupId, opts?.signal),
+        fetchMemberships(groupId, opts?.signal),
       ]);
       if (isCancelled()) return;
       setGroup(groupData);
@@ -45,21 +51,23 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
       setLoadError(null);
     } catch (err) {
       if (isCancelled()) return;
-      const apiError = err as ApiError;
-      const message = apiError.message ?? 'Unable to load group data.';
+      const message = getErrorMessage(err, 'Unable to load group data.');
       setError(message);
       setLoadError(message);
+    } finally {
+      if (!isCancelled()) setLoading(false);
     }
   };
 
   useCancelableEffect(
-    (isCancelled) => {
-      loadAll({ isCancelled });
+    (isCancelled, signal) => {
+      void loadAll({ isCancelled, signal });
     },
     [groupId],
   );
 
   const handleInvite = async () => {
+    setBusy(true);
     try {
       const created = await createGroupInvite(groupId, {
         expiresInDays: 7,
@@ -68,34 +76,40 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
       setInvite(created);
       setError(null);
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to create invite.');
+      setError(getErrorMessage(err, 'Unable to create invite.'));
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleRemove = async (membershipId: string) => {
+    setBusy(true);
     try {
       await removeMembership(groupId, membershipId);
       await loadAll();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to remove member.');
+      setError(getErrorMessage(err, 'Unable to remove member.'));
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleRole = async (membershipId: string, role: Membership['role']) => {
+    setBusy(true);
     try {
       await updateMembership(groupId, membershipId, { role });
       await loadAll();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to update role.');
+      setError(getErrorMessage(err, 'Unable to update role.'));
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="grid gap-6">
-      {error ? <Notice>{error}</Notice> : null}
+      {loading ? <Notice>Loading group...</Notice> : null}
+      {error ? <Notice role="alert">{error}</Notice> : null}
 
       <Card title="Group overview">
         <div className="grid gap-2 text-sm">
@@ -113,7 +127,7 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
       <Card title="Invite members">
         {isAdmin ? (
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="ghost" onClick={handleInvite}>
+            <Button variant="ghost" onClick={handleInvite} disabled={busy}>
               Create invite
             </Button>
             {invite ? (
@@ -133,7 +147,11 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
         <div className="grid gap-3">
           {memberships.length === 0 ? (
             <p className="text-sm text-[rgba(20,18,21,0.6)]">
-              {loadError ? 'Unable to load members.' : 'No members yet.'}
+              {loading
+                ? 'Loading members...'
+                : loadError
+                  ? 'Unable to load members.'
+                  : 'No members yet.'}
             </p>
           ) : (
             memberships.map((member) => (
@@ -152,6 +170,8 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
                 {isAdmin ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <select
+                      aria-label={`Role for ${member.user?.name || member.user?.email || member.userId}`}
+                      disabled={busy}
                       className={selectStyles}
                       value={member.role}
                       onChange={(event) =>
@@ -168,6 +188,8 @@ export function GroupDetailClient({ groupId }: { groupId: string }) {
                     <Button
                       variant="ghost"
                       size="sm"
+                      disabled={busy}
+                      aria-label={`Remove ${member.user?.name || member.user?.email || member.userId}`}
                       onClick={() => handleRemove(member.id)}
                     >
                       Remove

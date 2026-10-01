@@ -32,7 +32,7 @@ export function jsonError(err: unknown): Response {
 export async function handleRoute<T>(fn: () => Promise<T>): Promise<Response> {
   try {
     const data = await fn();
-    return jsonOk(data);
+    return data instanceof Response ? data : jsonOk(data);
   } catch (err) {
     return jsonError(err);
   }

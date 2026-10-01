@@ -15,7 +15,7 @@ export default async function GroupDetailPage({
       title="Group detail"
       description="Membership, invitations, and location details live here."
     >
-      <GroupDetailClient groupId={resolved.groupId} />
+      <GroupDetailClient key={resolved.groupId} groupId={resolved.groupId} />
     </AppShell>
   );
 }

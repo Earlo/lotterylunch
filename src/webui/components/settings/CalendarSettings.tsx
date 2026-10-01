@@ -1,6 +1,6 @@
 'use client';
 
-import type { ApiError } from '@/webui/api/client';
+import { getErrorMessage } from '@/webui/api/client';
 import type { CalendarConnection } from '@/webui/api/types';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
@@ -26,6 +26,7 @@ export function CalendarSettings() {
   const [connections, setConnections] = useState<CalendarConnection[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const searchParams = useSearchParams();
   const calendarStatus = searchParams.get('calendar');
   const notice =
@@ -35,28 +36,31 @@ export function CalendarSettings() {
         ? 'Google Calendar connection failed.'
         : null;
 
-  const loadConnections = async (opts?: { isCancelled?: () => boolean }) => {
+  const loadConnections = async (opts?: {
+    isCancelled?: () => boolean;
+    signal?: AbortSignal;
+  }) => {
     const isCancelled = opts?.isCancelled ?? (() => false);
-    setStatus('loading');
     try {
-      const data = await fetchCalendarConnections();
+      const data = await fetchCalendarConnections(opts?.signal);
       if (isCancelled()) return;
       setConnections(data);
       setError(null);
       setStatus('idle');
     } catch (err) {
       if (isCancelled()) return;
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to load connections.');
+      setError(getErrorMessage(err, 'Unable to load connections.'));
       setStatus('error');
     }
   };
 
-  useCancelableEffect((isCancelled) => {
-    loadConnections({ isCancelled });
+  useCancelableEffect((isCancelled, signal) => {
+    void loadConnections({ isCancelled, signal });
   }, []);
 
   const handleConnect = async (provider: CalendarConnection['provider']) => {
+    setBusy(true);
+    setError(null);
     try {
       if (provider === 'google') {
         const returnTo = window.location.pathname;
@@ -65,20 +69,26 @@ export function CalendarSettings() {
         return;
       }
       await createCalendarConnection(provider);
+      setStatus('loading');
       await loadConnections();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to connect calendar.');
+      setError(getErrorMessage(err, 'Unable to connect calendar.'));
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleDisconnect = async (id: string) => {
+    setBusy(true);
+    setError(null);
     try {
       await deleteCalendarConnection(id);
+      setStatus('loading');
       await loadConnections();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to remove connection.');
+      setError(getErrorMessage(err, 'Unable to remove connection.'));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -116,6 +126,8 @@ export function CalendarSettings() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  disabled={busy || status !== 'idle'}
+                  aria-label={`Disconnect ${provider.label}`}
                   onClick={() => handleDisconnect(connection.id)}
                 >
                   Disconnect
@@ -124,6 +136,8 @@ export function CalendarSettings() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  disabled={busy || status !== 'idle'}
+                  aria-label={`Connect ${provider.label}`}
                   onClick={() => handleConnect(provider.id)}
                 >
                   Connect
@@ -138,7 +152,20 @@ export function CalendarSettings() {
         <Notice>Loading calendar connections...</Notice>
       ) : null}
       {notice ? <Notice>{notice}</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
+      {error ? <Notice role="alert">{error}</Notice> : null}
+      {status === 'error' ? (
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setStatus('loading');
+              void loadConnections();
+            }}
+          >
+            Retry loading connections
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

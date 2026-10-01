@@ -3,8 +3,9 @@ import type { CreateCalendarArtifactInput } from '@/server/schemas/calendar';
 function escapeText(value: string) {
   return value
     .replace(/\\/g, '\\\\')
-    .replace(/\n/g, '\\n')
-    .replace(/,/g, '\\,');
+    .replace(/\r\n|\r|\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
 }
 
 function formatDateTime(value: string) {

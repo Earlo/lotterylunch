@@ -17,6 +17,12 @@ export function AppShell({
 }) {
   return (
     <div className="relative overflow-hidden">
+      <a
+        href="#portal-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-6 focus:z-10 focus:rounded-md focus:bg-white focus:px-4 focus:py-2"
+      >
+        Skip to content
+      </a>
       <div className="pointer-events-none absolute top-10 -left-20 h-56 w-56 rounded-full bg-[radial-gradient(circle_at_center,rgba(255,107,53,0.25),transparent_65%)] blur-2xl" />
       <div className="pointer-events-none absolute top-24 -right-20 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,rgba(27,77,62,0.2),transparent_65%)] blur-3xl" />
 
@@ -41,7 +47,13 @@ export function AppShell({
         <PortalNav />
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-6 pb-20">{children}</main>
+      <main
+        id="portal-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-6xl px-6 pb-20"
+      >
+        {children}
+      </main>
     </div>
   );
 }

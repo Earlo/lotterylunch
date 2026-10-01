@@ -1,12 +1,13 @@
 'use client';
 
-import type { ApiError } from '@/webui/api/client';
+import { getErrorMessage } from '@/webui/api/client';
 import { Button } from '@/webui/components/ui/Button';
 import { Notice } from '@/webui/components/ui/Notice';
 import { selectBaseStyles } from '@/webui/components/ui/formStyles';
+import { useCancelableEffect } from '@/webui/hooks/useCancelableEffect';
 import { updateUserProfile } from '@/webui/mutations/user';
 import { fetchUserProfile } from '@/webui/queries/user';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 
 const selectStyles = `${selectBaseStyles} px-4 py-2 text-sm`;
 
@@ -66,22 +67,33 @@ export function PreferencesSettings() {
     'idle',
   );
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
-  useEffect(() => {
-    fetchUserProfile()
-      .then((profile) => {
-        if (profile.shortNoticePreference) {
-          setShortNoticePreference(profile.shortNoticePreference);
-        }
-        if (profile.weekStartDay) {
-          setWeekStartDay(profile.weekStartDay);
-        }
-        if (profile.clockFormat) {
-          setClockFormat(profile.clockFormat);
-        }
-      })
-      .catch(() => null);
-  }, []);
+  useCancelableEffect(
+    (isCancelled, signal) => {
+      fetchUserProfile(signal)
+        .then((profile) => {
+          if (isCancelled()) return;
+          if (profile.shortNoticePreference) {
+            setShortNoticePreference(profile.shortNoticePreference);
+          }
+          if (profile.weekStartDay) {
+            setWeekStartDay(profile.weekStartDay);
+          }
+          if (profile.clockFormat) {
+            setClockFormat(profile.clockFormat);
+          }
+          setLoaded(true);
+          setError(null);
+        })
+        .catch((err) => {
+          if (isCancelled()) return;
+          setError(getErrorMessage(err, 'Unable to load preferences.'));
+        });
+    },
+    [loadAttempt],
+  );
 
   const selectedOption = useMemo(
     () =>
@@ -99,7 +111,9 @@ export function PreferencesSettings() {
     [clockFormat],
   );
 
-  const handleSave = async () => {
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!loaded || status === 'saving') return;
     setStatus('saving');
     setError(null);
     try {
@@ -110,25 +124,28 @@ export function PreferencesSettings() {
       });
       setStatus('saved');
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message ?? 'Unable to save preferences.');
+      setError(getErrorMessage(err, 'Unable to save preferences.'));
       setStatus('error');
     }
   };
 
   return (
-    <div className="grid gap-4">
+    <form className="grid gap-4" onSubmit={handleSave}>
       <div>
         <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">
           Preferences
         </p>
         <h2 className="text-2xl font-semibold">Calendar preferences</h2>
         <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
-          Set your flexibility plus how the schedule calendar should be displayed.
+          Set your flexibility plus how the schedule calendar should be
+          displayed.
         </p>
       </div>
 
-      <div className="grid gap-3 sm:max-w-lg">
+      <fieldset
+        disabled={!loaded || status === 'saving'}
+        className="grid gap-3 sm:max-w-lg"
+      >
         <label className="text-sm">
           Short-notice flexibility
           <select
@@ -188,26 +205,40 @@ export function PreferencesSettings() {
         <p className="text-xs text-[rgba(20,18,21,0.6)]">
           {selectedClockFormatOption?.description}
         </p>
-      </div>
+      </fieldset>
 
       <div>
         <Button
           variant="ghost"
-          onClick={handleSave}
-          disabled={status === 'saving'}
+          type="submit"
+          disabled={!loaded || status === 'saving'}
         >
           {status === 'saving' ? 'Saving...' : 'Save preferences'}
         </Button>
       </div>
-      <Notice>
-        Current preference: {selectedOption?.label ?? 'Not set'}.
-        {' '}
-        Week starts on {selectedWeekStartOption?.label ?? 'Monday'}.
-        {' '}
-        Time display: {selectedClockFormatOption?.label ?? '24-hour'}.
-      </Notice>
+      {!loaded && !error ? <Notice>Loading preferences...</Notice> : null}
+      {loaded ? (
+        <Notice>
+          Current preference: {selectedOption?.label ?? 'Not set'}. Week starts
+          on {selectedWeekStartOption?.label ?? 'Monday'}. Time display:{' '}
+          {selectedClockFormatOption?.label ?? '24-hour'}.
+        </Notice>
+      ) : null}
       {status === 'saved' ? <Notice>Preferences saved.</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
-    </div>
+      {error ? <Notice role="alert">{error}</Notice> : null}
+      {!loaded && error ? (
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setError(null);
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Retry loading preferences
+          </Button>
+        </div>
+      ) : null}
+    </form>
   );
 }

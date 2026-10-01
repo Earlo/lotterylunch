@@ -1,6 +1,6 @@
 import { handleRoute } from '@/server/http/responses';
 import { buildIcsEvent } from '@/server/integrations/calendar/ics';
-import { calendarArtifactIdParams } from '@/server/schemas/calendar';
+import { calendarArtifactDownloadParams } from '@/server/schemas/calendar';
 import { getCalendarArtifact } from '@/server/services/calendar';
 
 type Params = {
@@ -8,10 +8,9 @@ type Params = {
 };
 
 export async function GET(_req: Request, { params }: Params) {
-  const resolved = await params;
-  const { artifactId } = calendarArtifactIdParams.parse(resolved);
-
   return handleRoute(async () => {
+    const resolved = await params;
+    const { artifactId } = calendarArtifactDownloadParams.parse(resolved);
     const artifact = await getCalendarArtifact(artifactId);
     const payload = artifact.payload as Record<string, unknown>;
     const ics = buildIcsEvent({

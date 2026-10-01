@@ -18,9 +18,12 @@ export async function startGoogleCalendarConnection(returnTo?: string) {
 }
 
 export async function deleteCalendarConnection(connectionId: string) {
-  return apiFetch(`/api/v1/calendar/connections/${connectionId}`, {
-    method: 'DELETE',
-  });
+  return apiFetch(
+    `/api/v1/calendar/connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export async function updateAvailability(
@@ -45,8 +48,11 @@ export async function createCalendarArtifact(
     notes?: string;
   },
 ) {
-  return apiFetch(`/api/v1/matches/${matchId}/calendar-artifacts`, {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
+  return apiFetch(
+    `/api/v1/matches/${encodeURIComponent(matchId)}/calendar-artifacts`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
 }
