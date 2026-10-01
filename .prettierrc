@@ -1,14 +1,9 @@
 {
-  "tabWidth": 2,
-  "useTabs": false,
   "singleQuote": true,
-  "trailingComma": "all",
-  "plugins": [
-    "prettier-plugin-organize-imports",
-    "prettier-plugin-packagejson",
-    "prettier-plugin-tailwindcss"
-  ],
-  "tailwindAttributes": ["className"],
-  "tailwindFunctions": ["cn", "twMerge", "clsx"],
-  "tailwindPreserveWhitespace": false
+  "plugins": ["prettier-plugin-packagejson", "@ianvs/prettier-plugin-sort-imports", "prettier-plugin-tailwindcss"],
+  "importOrder": ["^@/(.*)$", "<THIRD_PARTY_MODULES>", "^[./]"],
+  "importOrderTypeScriptVersion": "7.0.2",
+  "printWidth": 120,
+  "tailwindStylesheet": "./styles/globals.css",
+  "tailwindFunctions": ["cn"]
 }

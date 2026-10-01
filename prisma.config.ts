@@ -11,7 +11,7 @@ export default defineConfig({
   },
   datasource: {
     // Generation does not need a database; database commands validate this URL.
-    url: process.env.DATABASE_URL,
-    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
+    ...(process.env.DATABASE_URL ? { url: process.env.DATABASE_URL } : {}),
+    ...(process.env.SHADOW_DATABASE_URL ? { shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL } : {}),
   },
 });

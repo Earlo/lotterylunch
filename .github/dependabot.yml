@@ -7,7 +7,7 @@ updates:
     versioning-strategy: 'increase'
     groups:
       next:
-        patterns: ['next', 'eslint-config-next', '@next/env']
+        patterns: ['next', '@next/env']
       react:
         patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
       prisma:
@@ -16,15 +16,9 @@ updates:
         patterns: ['better-auth', '@better-auth/*']
       tailwind:
         patterns: ['tailwindcss', '@tailwindcss/*']
+      oxlint:
+        patterns: ['oxlint', 'oxlint-tsgolint']
     ignore:
-      # TypeScript 7 is outside typescript-eslint's supported peer range.
-      - dependency-name: 'typescript'
-        update-types: ['version-update:semver-major']
-      # eslint-plugin-import currently supports ESLint through v9.
-      - dependency-name: 'eslint'
-        update-types: ['version-update:semver-major']
-      - dependency-name: '@eslint/js'
-        update-types: ['version-update:semver-major']
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
   - package-ecosystem: 'github-actions'

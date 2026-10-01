@@ -5,28 +5,32 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "check": "npm run lint && npm run format:check && npm run typecheck && npm test && npm run build",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "db:deploy": "prisma migrate deploy",
-    "dev": "docker compose up",
+    "dev": "sh ./up.sh",
     "dev:app": "next dev",
-    "format": "prettier --write src tests docs .github \"*.{json,ts,mjs,md,yml}\" .prettierrc",
-    "format:check": "prettier --check src tests docs .github \"*.{json,ts,mjs,md,yml}\" .prettierrc",
+    "format": "prettier --write app components hooks lib styles tests scripts docs .github \"*.{json,ts,mts,mjs,md,yml}\" .prettierrc",
+    "format:check": "prettier --check app components hooks lib styles tests scripts docs .github \"*.{json,ts,mts,mjs,md,yml}\" .prettierrc",
     "postinstall": "prisma generate",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "oxlint --deny-warnings && node --import tsx scripts/lint-tailwind.mts",
+    "lint:fix": "oxlint --fix && node --import tsx scripts/lint-tailwind.mts --fix",
     "prettier": "npm run format",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:reset": "prisma migrate reset",
     "start": "next start",
     "test": "npm run test:webui && npm run test:server",
-    "test:migrations": "node --test tests/migrations.integration.mjs",
+    "test:migrations": "node --import tsx --test tests/migrations.integration.mts",
     "test:server": "node --import tsx --test tests/server.*.test.ts",
-    "test:webui": "node --import tsx --test tests/webui.*.test.mjs",
+    "test:webui": "node --import tsx --test tests/webui.*.test.mts tests/webui.*.test.tsx",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "overrides": {
     "@prisma/config": {
       "deepmerge-ts": "8.0.2"
+    },
+    "@tailwindcss/language-service": {
+      "postcss": "8.5.28"
     },
     "prisma": {
       "mysql2": "3.24.5"
@@ -37,38 +41,43 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "better-auth": "1.7.7",
+    "clsx": "2.1.1",
     "next": "16.3.8",
     "pg": "8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "tailwind-merge": "3.7.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@eslint/js": "9.39.5",
+    "@ianvs/prettier-plugin-sort-imports": "4.7.1",
     "@next/env": "16.3.8",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.19.0",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "eslint": "9.39.5",
-    "eslint-config-next": "16.3.8",
-    "eslint-config-prettier": "10.1.8",
-    "eslint-import-resolver-typescript": "4.4.5",
-    "eslint-plugin-import": "2.32.0",
-    "globals": "17.13.0",
+    "babel-plugin-react-compiler": "1.0.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "oxlint": "1.86.0",
+    "oxlint-tsgolint": "7.0.2003",
     "postcss": "8.5.28",
     "prettier": "3.9.9",
-    "prettier-plugin-organize-imports": "4.3.0",
     "prettier-plugin-packagejson": "3.0.2",
     "prettier-plugin-tailwindcss": "0.8.1",
     "prisma": "7.10.0",
+    "tailwind-lint": "0.12.1",
     "tailwindcss": "4.3.3",
     "tsx": "4.23.15",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.71.0"
+    "typescript": "7.0.2"
   },
+  "packageManager": "npm@11.19.0",
   "engines": {
     "node": "^24.0.0 || ^26.0.0"
+  },
+  "allowScripts": {
+    "@prisma/engines": true,
+    "esbuild": true,
+    "prisma": true
   }
 }

@@ -50,23 +50,23 @@ Non-goals (initially):
 
 This repo is already a Next.js app with Prisma and NextAuth. We will treat it as:
 
-- API host: Next.js Route Handlers under `src/app/api/**`.
-- Core domain logic: `src/server/**` (pure functions + services).
-- Persistence: Prisma models + repositories under `src/server/db/**`.
+- API host: Next.js Route Handlers under `app/api/**`.
+- Core domain logic: `lib/server/**` (pure functions + services).
+- Persistence: Prisma models + repositories under `lib/server/db/**`.
 - Auth: NextAuth for user identity + API tokens for integrators.
-- Portal: `src/app/**` consumes the same domain services.
+- Portal: `app/**` consumes the same domain services.
 
 ### 3.1 Layered structure (proposed)
 
-- `src/app/api/v1/**/route.ts`
+- `app/api/v1/**/route.ts`
   - Thin HTTP layer (parsing, auth, status codes).
-- `src/server/services/**`
+- `lib/server/services/**`
   - Business logic orchestration.
-- `src/server/domain/**`
+- `lib/server/domain/**`
   - Core types, invariants, and matching algorithm(s).
-- `src/server/db/**`
+- `lib/server/db/**`
   - Prisma-backed repositories and query helpers.
-- `src/server/integrations/**`
+- `lib/server/integrations/**`
   - Calendar, email, and webhook delivery.
 
 This keeps the API stable and makes the portal just another client.
@@ -433,7 +433,7 @@ model CalendarArtifact {
 
 Recommended approach:
 
-- Define shared schemas using Zod (or similar) under `src/server/schemas/**`.
+- Define shared schemas using Zod (or similar) under `lib/server/schemas/**`.
 - Use the same schemas for:
   - Route handler input validation.
   - Service layer invariants.

@@ -11,7 +11,7 @@ Use Node.js 24 LTS (`nvm use`) and npm. Node.js 26 is also supported and checked
 3. Run `npm run dev` or `./up.sh`.
 4. Open http://localhost:3000.
 
-The app container installs the lockfile with `npm ci`, generates the Prisma client, applies committed migrations, and starts Next.js. Dependency and build volumes are separate from the host. Database data remains in `postgres-data/`. Development ports bind to localhost.
+The app container installs the lockfile with `npm ci`, generates the Prisma client, applies committed migrations, and starts Next.js. `npm run dev` exports your user and group IDs so generated files remain writable on the host. A separate initialization service sets ownership of the dependency and build volumes and the generated Prisma directory, including files left by earlier containers. Database data remains in `postgres-data/`. Development ports bind to localhost.
 
 To run the app on the host instead:
 
@@ -27,16 +27,20 @@ Next.js and the Prisma CLI both load `.env.local` and `.env`; exported variables
 ## Checks
 
 ```sh
-npm run check           # lint, formatting, route generation + types, tests, build
+npm run check           # formatting, lint, route generation + types, tests
+npm run build           # production build
 npm run test:migrations # disposable PostgreSQL migration tests; requires Docker
 npm run format:check
+npm run lint:fix
 ```
 
 `npm test` exercises the API client and server behavior. Migration tests use their own temporary database, check fresh installs and preservation of legacy data, and never use the application's database. CI runs checks on Node.js 24 and 26.
 
-Next.js 16 uses Turbopack by default and the `src/proxy.ts` convention. Prisma 7 generates its TypeScript client into `src/generated/prisma/` during installation. Generated output is ignored by Git, lint, and formatting. TypeScript remains on 6 and ESLint on 9 to satisfy the current lint plugins' supported peer ranges.
+The layout and tooling follow the sibling `kotisivut` project. Next.js 16 uses Turbopack by default, root `proxy.ts`, React Compiler, typed routes, and typed environment variables. TypeScript 7 checks optional properties, indexed access, and unused code strictly. Oxlint checks TypeScript, Next.js, accessibility, and React Compiler rules; Tailwind lint checks canonical classes. The React Hooks rule package is loaded as an Oxlint plugin. Prettier sorts imports, package fields, and Tailwind classes.
 
-The package overrides apply security fixes to `deepmerge-ts` and `mysql2` pinned by Prisma's CLI. Revisit those overrides when Prisma includes the patched versions itself.
+Prisma 7 generates its TypeScript client into `generated/prisma/` during installation. The entire `generated/` directory is ignored by Git, lint, and formatting. API queries and mutations validate responses with Zod before returning their inferred DTO types. Authentication and database services remain request-scoped; component caching is not enabled.
+
+The package overrides update `deepmerge-ts` and `mysql2` pinned by Prisma's CLI and `postcss` pinned by the Tailwind language service. Revisit those overrides when the upstream packages include the updated versions themselves.
 
 ## Database upgrades
 
@@ -47,6 +51,8 @@ npm run db:deploy
 ```
 
 Startup no longer marks migrations as applied automatically or runs `prisma db push` after a migration failure. If an existing database was created with `db push` and has no migration history, inspect its schema and establish an explicit baseline before deploying. A schema already modified outside the committed migrations needs a reviewed reconciliation; do not blindly mark every migration as applied.
+
+The older startup could also record historical migrations and then push the Better Auth schema directly. Those databases need the [preexisting schema recovery](docs/database-recovery.md) when the reconciliation migration fails with `P3009`. The tested repair adds only missing columns/indexes and preserves existing data and legacy tables.
 
 The tested legacy upgrade starts after all migrations through `20260206194000` have completed. A populated database still on the initial May 2025 schema needs separate handling of the historical NextAuth migration's required `User.updatedAt` column before continuing.
 
@@ -62,10 +68,14 @@ Dependency updates are grouped for packages that must stay in sync. Require pass
 
 ## Project layout
 
-- `src/app/(webui)` — public and portal routes.
-- `src/webui` — UI components and typed API queries/mutations.
-- `src/app/api` — Better Auth and `/api/v1` route handlers.
-- `src/server` — validation, authorization, services, and integrations.
+- `app/(webui)` — public and portal routes.
+- `app/api` — Better Auth and `/api/v1` route handlers.
+- `components` — shared UI, groups, authentication, and settings.
+- `hooks` — React hooks.
+- `lib/webui` — validated API queries/mutations and browser helpers.
+- `lib/server` — validation, authorization, services, and integrations.
+- `lib` — shared helpers, authentication, environment, and Prisma setup.
+- `styles` — global styles and Tailwind theme.
 - `prisma` — schema and committed migration history.
 - `tests` — unit, contract, and migration checks.
 

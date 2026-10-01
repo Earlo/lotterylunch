@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { SlidingWindowRateLimiter } from '@/lib/server/http/rate-limit';
 
-import { SlidingWindowRateLimiter } from '@/server/http/rate-limit';
-
-test('the request budget is independent for each client', () => {
+void test('the request budget is independent for each client', () => {
   const limiter = new SlidingWindowRateLimiter({
     windowMs: 60_000,
     maxRequests: 2,
@@ -19,7 +18,7 @@ test('the request budget is independent for each client', () => {
   assert.equal(limiter.check('client-b', 1500).allowed, true);
 });
 
-test('rejected requests do not extend the window and slots expire at the boundary', () => {
+void test('rejected requests do not extend the window and slots expire at the boundary', () => {
   const limiter = new SlidingWindowRateLimiter({
     windowMs: 1000,
     maxRequests: 2,
@@ -39,7 +38,7 @@ test('rejected requests do not extend the window and slots expire at the boundar
   assert.equal(limiter.check('client', 1101).allowed, false);
 });
 
-test('excess client addresses share a bounded overflow budget', () => {
+void test('excess client addresses share a bounded overflow budget', () => {
   const limiter = new SlidingWindowRateLimiter({
     windowMs: 1000,
     maxRequests: 2,
@@ -55,7 +54,7 @@ test('excess client addresses share a bounded overflow budget', () => {
   assert.equal(limiter.check('known-client', 0).allowed, true);
 });
 
-test('stale client buckets are evicted and overflow requests recover after expiry', () => {
+void test('stale client buckets are evicted and overflow requests recover after expiry', () => {
   const limiter = new SlidingWindowRateLimiter({
     windowMs: 1000,
     maxRequests: 1,

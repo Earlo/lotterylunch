@@ -10,7 +10,6 @@ postgres-data/**
 
 # Generated build and Prisma output
 .next/
-src/generated/prisma/
-generated/prisma/
+generated/
 coverage/
 package-lock.json

@@ -17,19 +17,19 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Phase 1: API Foundation (must-have)
 
 1. Create API v1 route namespace:
-   - [x] Add `src/app/api/v1/health/route.ts`.
-   - [x] Add initial versioning structure under `src/app/api/v1/**`.
+   - [x] Add `app/api/v1/health/route.ts`.
+   - [x] Add initial versioning structure under `app/api/v1/**`.
 2. Establish error envelope + helpers:
-   - [x] Add `src/server/http/errors.ts`.
-   - [x] Add `src/server/http/responses.ts`.
+   - [x] Add `lib/server/http/errors.ts`.
+   - [x] Add `lib/server/http/responses.ts`.
 3. Add validation layer:
-   - [x] Add Zod schemas under `src/server/schemas/**`.
+   - [x] Add Zod schemas under `lib/server/schemas/**`.
 4. Centralize auth + authorization:
-   - [x] Add `src/server/auth/session.ts`.
-   - [x] Add `src/server/auth/authorization.ts`.
+   - [x] Add `lib/server/auth/session.ts`.
+   - [x] Add `lib/server/auth/authorization.ts`.
    - [x] Provide helpers `requireUser()` and `requireGroupRole()`.
 5. Define service layer layout:
-   - [x] Add `src/server/services/**` folders with stubs.
+   - [x] Add `lib/server/services/**` folders with stubs.
 
 ## Phase 2: Data Model (must-have)
 
@@ -45,9 +45,9 @@ This task list is organized to keep the API as the #1 priority and the portal as
 4. Generate migration(s) and Prisma client.
    - [x] Prisma client generated locally (with env vars).
 5. Add repositories / query helpers:
-   - [x] `src/server/db/groups.ts`
-   - [x] `src/server/db/lotteries.ts`
-   - [x] `src/server/db/runs.ts`
+   - [x] `lib/server/db/groups.ts`
+   - [x] `lib/server/db/lotteries.ts`
+   - [x] `lib/server/db/runs.ts`
 
 ## Phase 3: Groups + Memberships API (must-have)
 
@@ -86,7 +86,7 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Phase 5: Matching Engine (must-have)
 
 1. Create matching domain module:
-   - [x] `src/server/domain/matching/**`.
+   - [x] `lib/server/domain/matching/**`.
 2. Implement initial algorithm:
    - [x] Inputs: confirmed participants + recent history window.
    - [x] Constraints: avoid recent repeats (best-effort).
@@ -101,7 +101,7 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Phase 6: Calendar Artifacts (should-have, still API-first)
 
 1. Implement ICS generation:
-   - `src/server/integrations/calendar/ics.ts`.
+   - `lib/server/integrations/calendar/ics.ts`.
 2. Implement calendar artifact service:
    - `createCalendarArtifact(matchId, details)`.
 3. Implement endpoints:
@@ -137,15 +137,15 @@ This task list is organized to keep the API as the #1 priority and the portal as
 ## Phase 8.5: Web UI Separation + Clarity (portal-focused)
 
 1. Establish a clear web UI boundary:
-   - [x] Create `src/app/(webui)/**` route group with its own layout.
-   - [x] Keep API routes under `src/app/api/**` only.
+   - [x] Create `app/(webui)/**` route group with its own layout.
+   - [x] Keep API routes under `app/api/**` only.
 2. Create a web UI service layer:
-   - [x] Add a typed API client in `src/webui/api/**`.
-   - [x] Add `src/webui/queries/**` for data hooks and cache keys.
-   - [x] Add `src/webui/mutations/**` for write operations.
+   - [x] Add a typed API client in `lib/webui/api/**`.
+   - [x] Add `lib/webui/queries/**` for data hooks and cache keys.
+   - [x] Add `lib/webui/mutations/**` for write operations.
 3. Define shared UI primitives:
-   - [x] Add `src/webui/components/ui/**` for buttons, inputs, dialogs.
-   - [x] Add `src/webui/components/layout/**` for app shell, nav, empty states.
+   - [x] Add `components/ui/**` for buttons, inputs, dialogs.
+   - [x] Add `components/layout/**` for app shell, nav, empty states.
 4. Define portal pages and states:
    - [x] `/portal` landing (empty state + CTA).
    - [x] `/portal/groups`, `/portal/groups/:groupId`.
@@ -188,7 +188,7 @@ This task list is organized to keep the API as the #1 priority and the portal as
    - Status codes.
    - Error envelope consistency.
 3. Add basic rate limiting + abuse protections.
-   - [x] Basic rate limiting added in `src/middleware.ts`.
+   - [x] Basic rate limiting added in `proxy.ts`.
 4. Add audit-friendly logs around critical transitions.
    - [x] Added structured logs in run execution/cancel and membership changes.
 

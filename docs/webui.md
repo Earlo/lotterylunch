@@ -2,7 +2,7 @@
 
 ## Tokens
 
-- Colors: `--ink`, `--haze`, `--ember`, `--moss`, `--sand`, `--ring` in `src/app/globals.css`.
+- Colors: `--ink`, `--haze`, `--ember`, `--moss`, `--sand`, `--ring` in `styles/globals.css`.
 - Radii: `--radius-md` (12px), `--radius-lg` (18px).
 - Shadow: `--shadow-lift` for lifted surfaces and CTAs.
 

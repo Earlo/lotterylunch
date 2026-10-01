@@ -1,0 +1,9 @@
+export default function PortalLoading() {
+  return (
+    <div className="mx-auto flex w-full max-w-4xl items-center justify-center px-6 py-24">
+      <output className="rounded-lg border border-[rgba(20,18,21,0.15)] bg-white/80 px-6 py-4 text-sm text-[rgba(20,18,21,0.7)] shadow-sm">
+        Loading portal...
+      </output>
+    </div>
+  );
+}
