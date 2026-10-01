@@ -37,6 +37,7 @@ const prismaCli = path.join(root, 'node_modules/prisma/build/index.js');
 const migrationRoot = path.join(root, 'prisma/migrations');
 const legacyLastMigration = '20260206194000_add_week_start_and_clock_format';
 const reconciliationMigration = '20261001000000_reconcile_better_auth_and_api_schema';
+const restorationMigration = '20261001010000_restore_missing_auth_columns';
 
 // Prisma's DateTime columns represent UTC without a PostgreSQL time zone.
 // Parse them consistently even when the test runner uses a different time zone.
@@ -284,6 +285,38 @@ async function authDataSnapshot(client: pg.Client, includeRepairColumns = false)
   ).rows;
 }
 
+async function preexistingBetterAuthSchema(client: pg.Client) {
+  // Reproduce the old startup's db-pushed schema without depending on Git history.
+  await client.query(`
+    ALTER TABLE "User" DROP COLUMN "emailVerifiedAt";
+    ALTER TABLE "Account" DROP COLUMN "type", DROP COLUMN "token_type", DROP COLUMN "session_state";
+    DROP INDEX "Account_userId_idx";
+    DROP INDEX "Session_userId_idx";
+    DROP INDEX "verification_identifier_idx";
+    INSERT INTO "User" ("id", "email", "emailVerified", "updatedAt") VALUES
+      ('preexisting-verified', 'verified@example.test', true, '2025-05-20 10:00:00'),
+      ('preexisting-unverified', 'unverified@example.test', false, '2025-05-21 10:00:00');
+    INSERT INTO "Account" (
+      "id", "userId", "providerId", "accountId", "accessToken", "refreshToken", "idToken",
+      "accessTokenExpiresAt", "refreshTokenExpiresAt", "scope", "updatedAt"
+    ) VALUES
+      ('existing-account-verified', 'preexisting-verified', 'google', 'google-verified',
+       'existing-access-verified', 'existing-refresh-verified', 'existing-id-verified',
+       '2035-05-20 09:00:00', '2035-06-20 09:00:00', 'openid email profile', '2025-05-20 10:00:00'),
+      ('existing-account-unverified', 'preexisting-unverified', 'google', 'google-unverified',
+       'existing-access-unverified', 'existing-refresh-unverified', 'existing-id-unverified',
+       '2035-05-21 09:00:00', NULL, 'openid email', '2025-05-21 10:00:00');
+    INSERT INTO "Session" ("id", "token", "userId", "expiresAt", "ipAddress", "userAgent", "updatedAt") VALUES
+      ('existing-session-verified', 'existing-token-verified', 'preexisting-verified',
+       '2035-05-20 09:00:00', '127.0.0.1', 'verified-test-agent', '2025-05-20 10:00:00'),
+      ('existing-session-unverified', 'existing-token-unverified', 'preexisting-unverified',
+       '2035-05-21 09:00:00', NULL, 'unverified-test-agent', '2025-05-21 10:00:00');
+    INSERT INTO "verification" ("id", "identifier", "value", "expiresAt", "updatedAt") VALUES
+      ('existing-verification', 'verified@example.test', 'existing-verification-value',
+       '2035-05-20 09:00:00', '2025-05-20 10:00:00');
+  `);
+}
+
 void test('migration history builds the current schema and preserves legacy records', async (t) => {
   const workdir = await mkdtemp(path.join(tmpdir(), 'lotterylunch-migrations-'));
   let server: Awaited<ReturnType<typeof disposablePostgres>> | undefined;
@@ -294,10 +327,12 @@ void test('migration history builds the current schema and preserves legacy reco
     await admin.query('CREATE DATABASE migration_fresh');
     await admin.query('CREATE DATABASE migration_legacy');
     await admin.query('CREATE DATABASE migration_preexisting');
+    await admin.query('CREATE DATABASE migration_recorded');
     await admin.query('CREATE DATABASE migration_shadow');
     const freshUrl = databaseUrl(server.url, 'migration_fresh');
     const legacyUrl = databaseUrl(server.url, 'migration_legacy');
     const preexistingUrl = databaseUrl(server.url, 'migration_preexisting');
+    const recordedUrl = databaseUrl(server.url, 'migration_recorded');
     const currentConfig = await prismaConfig(
       path.join(workdir, 'current.config.mjs'),
       path.join(root, 'prisma/schema.prisma'),
@@ -584,40 +619,14 @@ void test('migration history builds the current schema and preserves legacy reco
     await t.test(
       'recovery preserves a preexisting Better Auth schema and resolves only the failed reconciliation',
       async () => {
-        // Reproduce the old startup's db-pushed schema without depending on Git history.
         await prisma(preexistingUrl, ['migrate', 'deploy'], currentConfig);
         const client = await connect(preexistingUrl);
         try {
-          await client.query(`
-          ALTER TABLE "User" DROP COLUMN "emailVerifiedAt";
-          ALTER TABLE "Account" DROP COLUMN "type", DROP COLUMN "token_type", DROP COLUMN "session_state";
-          DROP INDEX "Account_userId_idx";
-          DROP INDEX "Session_userId_idx";
-          DROP INDEX "verification_identifier_idx";
-          INSERT INTO "User" ("id", "email", "emailVerified", "updatedAt") VALUES
-            ('preexisting-verified', 'verified@example.test', true, '2025-05-20 10:00:00'),
-            ('preexisting-unverified', 'unverified@example.test', false, '2025-05-21 10:00:00');
-          INSERT INTO "Account" (
-            "id", "userId", "providerId", "accountId", "accessToken", "refreshToken", "idToken",
-            "accessTokenExpiresAt", "refreshTokenExpiresAt", "scope", "updatedAt"
-          ) VALUES
-            ('existing-account-verified', 'preexisting-verified', 'google', 'google-verified',
-             'existing-access-verified', 'existing-refresh-verified', 'existing-id-verified',
-             '2035-05-20 09:00:00', '2035-06-20 09:00:00', 'openid email profile', '2025-05-20 10:00:00'),
-            ('existing-account-unverified', 'preexisting-unverified', 'google', 'google-unverified',
-             'existing-access-unverified', 'existing-refresh-unverified', 'existing-id-unverified',
-             '2035-05-21 09:00:00', NULL, 'openid email', '2025-05-21 10:00:00');
-          INSERT INTO "Session" ("id", "token", "userId", "expiresAt", "ipAddress", "userAgent", "updatedAt") VALUES
-            ('existing-session-verified', 'existing-token-verified', 'preexisting-verified',
-             '2035-05-20 09:00:00', '127.0.0.1', 'verified-test-agent', '2025-05-20 10:00:00'),
-            ('existing-session-unverified', 'existing-token-unverified', 'preexisting-unverified',
-             '2035-05-21 09:00:00', NULL, 'unverified-test-agent', '2025-05-21 10:00:00');
-          INSERT INTO "verification" ("id", "identifier", "value", "expiresAt", "updatedAt") VALUES
-            ('existing-verification', 'verified@example.test', 'existing-verification-value',
-             '2035-05-20 09:00:00', '2025-05-20 10:00:00');
-        `);
-          // Historical migrations were already baselined; only reconciliation is pending.
-          await client.query('DELETE FROM "_prisma_migrations" WHERE migration_name = $1', [reconciliationMigration]);
+          await preexistingBetterAuthSchema(client);
+          // Historical migrations were already baselined; reconciliation and the new repair are pending.
+          await client.query('DELETE FROM "_prisma_migrations" WHERE migration_name = ANY($1::text[])', [
+            [reconciliationMigration, restorationMigration],
+          ]);
           const previousHistory = (
             await client.query<{ record: string }>(
               'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m ORDER BY migration_name',
@@ -664,8 +673,8 @@ void test('migration history builds the current schema and preserves legacy reco
           await assertSchemaMatches(preexistingUrl, currentConfig);
           const historyAfterRecovery = (
             await client.query<{ record: string }>(
-              'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m WHERE migration_name <> $1 ORDER BY migration_name',
-              [reconciliationMigration],
+              'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m WHERE migration_name <> ALL($1::text[]) ORDER BY migration_name',
+              [[reconciliationMigration, restorationMigration]],
             )
           ).rows;
           assert.deepEqual(historyAfterRecovery, previousHistory);
@@ -703,6 +712,86 @@ void test('migration history builds the current schema and preserves legacy reco
         }
       },
     );
+
+    await t.test('deployment repairs missing auth columns after reconciliation was already recorded', async () => {
+      await prisma(recordedUrl, ['migrate', 'deploy'], currentConfig);
+      const client = await connect(recordedUrl);
+      const runtimeClient = runtimePrisma(recordedUrl);
+      try {
+        await preexistingBetterAuthSchema(client);
+        // Reproduce the database before the forward repair was introduced, retaining recorded reconciliation.
+        await client.query('DELETE FROM "_prisma_migrations" WHERE migration_name = $1', [restorationMigration]);
+        const recordedReconciliation = (
+          await client.query<{ finished_at: Date | null; rolled_back_at: Date | null }>(
+            'SELECT finished_at, rolled_back_at FROM "_prisma_migrations" WHERE migration_name = $1',
+            [reconciliationMigration],
+          )
+        ).rows[0];
+        assert.ok(recordedReconciliation?.finished_at);
+        assert.equal(recordedReconciliation.rolled_back_at, null);
+        const originalHistory = (
+          await client.query<{ record: string }>(
+            'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m ORDER BY migration_name',
+          )
+        ).rows;
+        assert.equal(originalHistory.length, 6);
+        const originalData = await authDataSnapshot(client);
+        assert.equal(originalData.length, 7);
+        const accountLookup = {
+          where: { providerId: 'google', accountId: 'google-verified' },
+        };
+        await assert.rejects(runtimeClient.account.findMany(accountLookup), { code: 'P2022' });
+
+        const deployment = await prisma(recordedUrl, ['migrate', 'deploy'], currentConfig);
+        assert.match(deployment, new RegExp(`Applying migration .${restorationMigration}`));
+        await assertSchemaMatches(recordedUrl, currentConfig);
+        assert.deepEqual(await authDataSnapshot(client), originalData);
+        const historyAfterRepair = (
+          await client.query<{ record: string }>(
+            'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m WHERE migration_name <> $1 ORDER BY migration_name',
+            [restorationMigration],
+          )
+        ).rows;
+        assert.deepEqual(historyAfterRepair, originalHistory);
+
+        const accounts = await runtimeClient.account.findMany(accountLookup);
+        assert.equal(accounts.length, 1);
+        assert.ok(accounts[0]);
+        assert.equal(accounts[0].id, 'existing-account-verified');
+        assert.equal(accounts[0].userId, 'preexisting-verified');
+        assert.equal(accounts[0].accessToken, 'existing-access-verified');
+        assert.equal(accounts[0].refreshToken, 'existing-refresh-verified');
+        assert.equal(accounts[0].idToken, 'existing-id-verified');
+        assert.equal(accounts[0].legacyType, null);
+        assert.equal(accounts[0].legacyTokenType, null);
+        assert.equal(accounts[0].legacySessionState, null);
+        const users = await runtimeClient.user.findMany({
+          orderBy: { id: 'asc' },
+          include: { accounts: true, sessions: true },
+        });
+        assert.deepEqual(
+          users.map(({ id, emailVerified, emailVerifiedAt }) => ({ id, emailVerified, emailVerifiedAt })),
+          [
+            { id: 'preexisting-unverified', emailVerified: false, emailVerifiedAt: null },
+            { id: 'preexisting-verified', emailVerified: true, emailVerifiedAt: null },
+          ],
+        );
+        assert.ok(users.every((user) => user.accounts.length === 1 && user.sessions.length === 1));
+        assert.equal(
+          (await runtimeClient.verification.findUniqueOrThrow({ where: { id: 'existing-verification' } })).value,
+          'existing-verification-value',
+        );
+
+        const repairedSchema = await schemaSnapshot(client);
+        const repairedData = await authDataSnapshot(client, true);
+        assert.match(await prisma(recordedUrl, ['migrate', 'deploy'], currentConfig), /No pending migrations/);
+        assert.deepEqual(await schemaSnapshot(client), repairedSchema);
+        assert.deepEqual(await authDataSnapshot(client, true), repairedData);
+      } finally {
+        await runtimeClient.$disconnect();
+        await client.end();
+      }
+    });
   } finally {
     await admin?.end();
     await server?.stop();

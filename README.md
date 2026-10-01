@@ -52,7 +52,7 @@ npm run db:deploy
 
 Startup no longer marks migrations as applied automatically or runs `prisma db push` after a migration failure. If an existing database was created with `db push` and has no migration history, inspect its schema and establish an explicit baseline before deploying. A schema already modified outside the committed migrations needs a reviewed reconciliation; do not blindly mark every migration as applied.
 
-The older startup could also record historical migrations and then push the Better Auth schema directly. Those databases need the [preexisting schema recovery](docs/database-recovery.md) when the reconciliation migration fails with `P3009`. The tested repair adds only missing columns/indexes and preserves existing data and legacy tables.
+The older startup could also record historical migrations and then push the Better Auth schema directly. If reconciliation is already recorded as applied, the follow-up migration restores missing authentication columns and indexes during normal deployment. This fixes Google sign-in errors such as `Account.type` missing despite no pending reconciliation migration. If reconciliation instead fails with `P3009`, follow the [preexisting schema recovery](docs/database-recovery.md) before deploying. Both repairs preserve existing data and legacy tables.
 
 The tested legacy upgrade starts after all migrations through `20260206194000` have completed. A populated database still on the initial May 2025 schema needs separate handling of the historical NextAuth migration's required `User.updatedAt` column before continuing.
 
