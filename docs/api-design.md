@@ -1,3 +1,8 @@
+> Historical design proposal. Lottery CRUD, enrollment windows, schedulers, and
+> delivery workers described below are future work. The shipped organizer-triggered
+> participation/draw flow and supported integrations are documented in the
+> [current API reference](api-reference.md) and [release checklist](tasklist.md).
+
 # LotteryLunch API-First Design Document
 
 ## 1. Summary

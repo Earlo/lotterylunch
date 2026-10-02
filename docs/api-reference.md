@@ -1,183 +1,144 @@
-# LotteryLunch API v1 Reference (Must-Have Slice)
+# LotteryLunch API v1
 
-All endpoints live under `/api/v1/**`.
-
-## Response conventions
-
-Successful responses return JSON payloads. Errors use a consistent envelope:
+All paths below start with `/api/v1`. Except health/readiness, requests require a
+Better Auth session or a personal token in `Authorization: Bearer <token>`.
+Google Calendar OAuth additionally requires the authenticated browser session.
+Success responses contain JSON, except ICS downloads. Errors use this envelope:
 
 ```json
-{
-  "error": {
-    "code": "bad_request",
-    "message": "Validation failed",
-    "details": {}
-  }
-}
+{ "error": { "code": "bad_request", "message": "Validation failed", "details": {} } }
 ```
 
 ## Health
 
-1. `GET /api/v1/health`
+| Method | Path      | Behavior                                                                     |
+| ------ | --------- | ---------------------------------------------------------------------------- |
+| GET    | `/health` | Process liveness and service metadata; no database query.                    |
+| GET    | `/ready`  | Queries the application database; HTTP 200 when ready, 503 when unavailable. |
 
-- Returns service metadata and a timestamp.
+## Account and availability
 
-## Groups
+| Method | Path                           | Behavior                                                                                 |
+| ------ | ------------------------------ | ---------------------------------------------------------------------------------------- |
+| GET    | `/users/me`                    | Current profile and display preferences.                                                 |
+| PATCH  | `/users/me`                    | Update name, timezone, image, area, shortNoticePreference, weekStartDay, or clockFormat. |
+| GET    | `/availability?groupId=<uuid>` | Own availability; omit groupId to retrieve all own slots.                                |
+| PUT    | `/availability`                | Atomically replace **all** own availability; `[]` clears all slots.                      |
 
-1. `POST /api/v1/groups`
-
-- Creates a group and an owner membership for the caller.
-- Body:
-
-```json
-{
-  "name": "Design Guild",
-  "description": "Lunch group for design team",
-  "visibility": "open"
-}
-```
-
-2. `GET /api/v1/groups`
-
-- Lists groups where the caller has an active membership.
-
-3. `GET /api/v1/groups/:groupId`
-
-- Gets a single group, requiring membership.
-
-4. `PATCH /api/v1/groups/:groupId`
-
-- Updates a group, requiring owner/admin role.
-
-5. `DELETE /api/v1/groups/:groupId`
-
-- Deletes a group, requiring owner role.
-
-## Memberships
-
-1. `GET /api/v1/groups/:groupId/memberships`
-
-- Lists memberships for a group.
-
-2. `POST /api/v1/groups/:groupId/memberships`
-
-- Join an open group when no `userId` is provided.
-- Invite a user when `userId` is provided (owner/admin only).
-
-Join example:
+Profile name, image, and area accept `null` to clear values. Timezones must be IANA
+names. Availability requires `endAt > startAt`; grouped slots require active group
+membership. Save the full list, including other groups' slots you want to keep.
+At most 1,000 slots are accepted per replacement.
 
 ```json
-{}
-```
-
-Invite example:
-
-```json
-{
-  "userId": "00000000-0000-0000-0000-000000000000",
-  "role": "member",
-  "status": "pending"
-}
-```
-
-3. `PATCH /api/v1/groups/:groupId/memberships/:membershipId`
-
-- Updates role/status (owner/admin only).
-
-4. `DELETE /api/v1/groups/:groupId/memberships/:membershipId`
-
-- Removes a membership (self, owner, or admin).
-
-## Lotteries
-
-1. `GET /api/v1/groups/:groupId/lotteries`
-
-- Lists lotteries for a group.
-
-2. `POST /api/v1/groups/:groupId/lotteries`
-
-- Creates a lottery (owner/admin only).
-
-Example:
-
-```json
-{
-  "name": "Weekly Lunch",
-  "groupSizeMin": 2,
-  "groupSizeMax": 3,
-  "repeatWindowRuns": 3,
-  "scheduleJson": {
-    "cadence": "weekly",
-    "dayOfWeek": 3,
-    "time": "12:00"
+[
+  {
+    "startAt": "2026-10-02T09:00:00.000Z",
+    "endAt": "2026-10-02T10:00:00.000Z",
+    "type": "lunch",
+    "recurringRule": "FREQ=WEEKLY;BYDAY=FR"
   }
-}
+]
 ```
 
-3. `GET /api/v1/lotteries/:lotteryId`
+Slot types: coffee, lunch, afterwork; matching uses lunch. Omit `groupId` for personal
+availability and `recurringRule` for one-off slots. Weekly rules have exactly
+`FREQ=WEEKLY;BYDAY=SU|MO|TU|WE|TH|FR|SA`, optionally followed by
+`;X-LL-DISABLED=1`. `X-LL-DAY-OFF=1` suppresses the corresponding weekly slot on
+that date, matching times, type, and group. Other recurrence rules are rejected.
+Weekly wall-clock times use the user's profile timezone.
 
-- Gets a lottery.
+## Groups and memberships
 
-4. `PATCH /api/v1/lotteries/:lotteryId`
+| Method | Path                                         | Permission and behavior                                                                                              |
+| ------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/groups`                                    | Own active groups.                                                                                                   |
+| POST   | `/groups`                                    | Create group plus owner membership.                                                                                  |
+| GET    | `/groups/:groupId`                           | Active member; details.                                                                                              |
+| PATCH  | `/groups/:groupId`                           | Owner/admin; edit group.                                                                                             |
+| DELETE | `/groups/:groupId`                           | Owner; delete dependent memberships, invites, grouped availability, runs, matches, events/artifacts transactionally. |
+| GET    | `/groups/:groupId/memberships`               | Active member; list memberships and participation.                                                                   |
+| POST   | `/groups/:groupId/memberships`               | `{}` joins an open group; `{ "userId": "..." }` invites as owner/admin.                                              |
+| PATCH  | `/groups/:groupId/memberships/:membershipId` | Owner/admin; edit non-owner role/status, including reinstatement.                                                    |
+| DELETE | `/groups/:groupId/memberships/:membershipId` | Leave own membership or remove another member as owner/admin.                                                        |
+| POST   | `/groups/:groupId/ownership`                 | Current owner; transfer to an active member with `{ "userId": "..." }`.                                              |
+| POST   | `/groups/:groupId/invites`                   | Owner/admin; generate token with optional expiresInDays/maxUses.                                                     |
+| POST   | `/invites/:token/accept`                     | Accept an unexpired invite; atomically claim its limited use.                                                        |
 
-- Updates a lottery (owner/admin only).
+Group fields: name, description, location, visibility (`open` or `invite_only`),
+defaultGroupSize (maximum lunch size, 2–8), timezone. Invitation/edit roles: member/admin; statuses:
+pending/active/suspended. Ordinary writes cannot assign ownership, change the
+canonical owner, or overwrite approved membership through an invitation.
+Ownership transfer updates the group and roles together; the previous owner
+becomes admin. Suspended users cannot join, accept invites, or delete their
+suspension. An active owner/admin must reinstate them first.
 
-5. `DELETE /api/v1/lotteries/:lotteryId`
+## Participation and lunch draws
 
-- Deletes a lottery (owner/admin only).
-
-## Runs
-
-1. `GET /api/v1/lotteries/:lotteryId/runs`
-
-- Lists runs for a lottery.
-
-2. `POST /api/v1/lotteries/:lotteryId/runs`
-
-- Creates a run (owner/admin only).
-
-Example:
+| Method | Path                             | Permission and behavior                                               |
+| ------ | -------------------------------- | --------------------------------------------------------------------- |
+| GET    | `/groups/:groupId/participation` | Active member; own participation flag.                                |
+| PATCH  | `/groups/:groupId/participation` | Active member; opt in/out with `{ "participating": true }`.           |
+| GET    | `/groups/:groupId/runs`          | Active member; latest 20 persisted draws, matches, unmatched members. |
+| POST   | `/groups/:groupId/runs`          | Owner/admin; execute and persist a draw, HTTP 201.                    |
 
 ```json
 {
-  "enrollmentOpensAt": "2026-01-27T16:00:00.000Z",
-  "enrollmentClosesAt": "2026-01-28T16:00:00.000Z",
-  "matchingExecutesAt": "2026-01-28T17:00:00.000Z"
+  "windowStart": "2026-10-02T00:00:00.000Z",
+  "windowEnd": "2026-10-09T00:00:00.000Z",
+  "durationMinutes": 60
 }
 ```
 
-3. `GET /api/v1/runs/:runId`
+The future window spans at least one lunch duration and at most 31 days. Duration
+is 15–180 minutes, default 60. At least two active members must opt in; up to 500
+participants are supported. Draws combine ungrouped and current-group lunch
+availability, respect weekly templates/overrides, and avoid overlapping persisted
+app bookings across groups. Lunches contain two to defaultGroupSize members.
+Recent pairings are avoided best-effort. Each member
+receives at most one lunch per draw; members without shared availability appear
+in `unmatchedUserIds`.
 
-- Gets a run with participations and matches.
+Runs persist participantIds, unmatchedUserIds, algorithmVersion, requested window,
+and matches with memberIds/scheduledFor/scheduledUntil. Execution and match/event
+persistence use a transaction. No background scheduler, per-run enrollment window,
+cancellation endpoint, or automatic reminders are provided. Former lottery CRUD
+and `/runs/:runId/**` endpoints are not shipped.
 
-4. `POST /api/v1/runs/:runId/cancel`
+## Calendar
 
-- Cancels a run (owner/admin only).
+| Method | Path                                    | Behavior                                                                                     |
+| ------ | --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| GET    | `/calendar/connections`                 | Own Google connections; tokens redacted.                                                     |
+| POST   | `/calendar/connections/google`          | Start OAuth with optional returnTo; set HttpOnly browser-binding cookie, return consent URL. |
+| GET    | `/calendar/connections/google/callback` | Finish in initiating browser/account, consume state once, redirect.                          |
+| DELETE | `/calendar/connections/:connectionId`   | Disconnect own connection.                                                                   |
+| POST   | `/matches/:matchId/calendar-artifacts`  | Active participant or group owner/admin; create ICS or a Google event in caller's calendar.  |
+| GET    | `/calendar-artifacts/:artifactId.ics`   | Authorized authenticated download; private, no-store.                                        |
 
-5. `POST /api/v1/runs/:runId/execute`
+Artifact body: title, startsAt, endsAt, optional provider (`ics`, default, or google),
+timezone, location, meetingUrl, notes. End must follow start. Downloads have no
+public sharing links: leaving/suspension removes access, canceled matches cannot
+export, and group deletion removes artifacts. Previously imported files and Google
+events remain in the recipient's external calendar. Events are created manually
+for the caller; no attendee invitations or reminders are sent automatically.
+Outlook/Apple OAuth and ICS feeds are unavailable; direct
+`POST /calendar/connections` requests are rejected.
 
-- Executes matching for a run (owner/admin only).
+## API tokens and webhooks
 
-## Participations
+`GET/POST /tokens` list/create personal tokens; `DELETE /tokens/:tokenId` revokes one.
+Creation returns the raw token once; only its hash is stored. Tokens carry the
+user's permissions and are not scoped to a group.
 
-1. `GET /api/v1/runs/:runId/participations`
-
-- Lists participations for a run.
-
-2. `POST /api/v1/runs/:runId/participations`
-
-- Upserts the caller's participation during the enrollment window.
-
-Example:
-
-```json
-{
-  "status": "confirmed"
-}
-```
+Webhook delivery is unavailable. `GET /webhooks` exposes historical endpoints with
+`isActive: false` and `deliveryAvailable: false`. Creation or activation returns
+HTTP 501. `PATCH /webhooks/:webhookId` can edit/deactivate an owned historical
+endpoint; `DELETE` removes it and its delivery rows. No outgoing delivery,
+signatures, or retry worker are claimed.
 
 ## Rate limiting
 
-A simple in-memory rate limit is applied to `/api/v1/**` in middleware.
-This is best-effort protection and should be replaced with a durable
-store (for example, Redis) in production.
+Production `/api/v1/**` has a per-process sliding-window limiter (120 requests/minute).
+Ingress must overwrite `x-forwarded-for`; multiple replicas require shared gateway
+rate limiting. The process limiter is supplemental protection.

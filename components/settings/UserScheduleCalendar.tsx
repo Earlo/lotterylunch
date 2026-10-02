@@ -11,6 +11,7 @@ import {
   minutesSinceMidnight,
   parseDateKey,
   parseWeeklyTemplateRule,
+  slotEndMinute,
   toDateKeyFromIso,
   weekDayLabels,
 } from '@/lib/webui/weeklyTemplateUtils';
@@ -169,10 +170,9 @@ function minuteToY(minute: number) {
 }
 
 function formatMinutesLabel(minutes: number, clockFormat: ClockFormatPreference) {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setMinutes(minutes);
+  const date = new Date(Date.UTC(2000, 0, 1, 0, minutes));
   return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
     hour: 'numeric',
     minute: '2-digit',
     hour12: clockFormat === 'ampm',
@@ -180,9 +180,9 @@ function formatMinutesLabel(minutes: number, clockFormat: ClockFormatPreference)
 }
 
 function formatHourLabel(hour: number, clockFormat: ClockFormatPreference) {
-  const date = new Date();
-  date.setHours(hour, 0, 0, 0);
+  const date = new Date(Date.UTC(2000, 0, 1, hour));
   return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
     hour: 'numeric',
     hour12: clockFormat === 'ampm',
   }).format(date);
@@ -277,6 +277,7 @@ export function UserScheduleCalendar({
   slots,
   weekStartDay,
   clockFormat,
+  timezone = 'UTC',
   onCreateWeeklySlot,
   onCreateWeeklySlotForAllWeekdays,
   onDeleteSlot,
@@ -288,6 +289,7 @@ export function UserScheduleCalendar({
   groups: GroupSummary[];
   weekStartDay: WeekStartDayPreference;
   clockFormat: ClockFormatPreference;
+  timezone?: string;
   onCreateWeeklySlot: (weekday: number, startMinute: number, endMinute: number) => void;
   onCreateWeeklySlotForAllWeekdays: (startMinute: number, endMinute: number) => void;
   onDeleteSlot: (index: number) => void;
@@ -301,7 +303,7 @@ export function UserScheduleCalendar({
   }) => void;
   onEnableWeeklySlotForDay: (overrideIndex: number) => void;
 }) {
-  const [today, setToday] = useState(() => new Date());
+  const [today, setToday] = useState(() => parseDateKey(toDateKeyFromIso(new Date().toISOString(), timezone)));
   const todayKey = toDateKey(today);
   const [monthCursor, setMonthCursor] = useState(() => firstDayOfMonth(today));
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
@@ -331,8 +333,8 @@ export function UserScheduleCalendar({
       const parsedRule = parseWeeklyTemplateRule(slot.recurringRule);
       if (!parsedRule) continue;
 
-      const startMinute = minutesSinceMidnight(slot.startAt);
-      const endMinute = Math.max(startMinute + timelineStepMinutes, minutesSinceMidnight(slot.endAt));
+      const startMinute = minutesSinceMidnight(slot.startAt, timezone);
+      const endMinute = Math.max(startMinute + timelineStepMinutes, slotEndMinute(slot.startAt, slot.endAt, timezone));
 
       entries.push({
         index,
@@ -347,7 +349,7 @@ export function UserScheduleCalendar({
     entries.sort((a, b) => a.weekday - b.weekday || a.startMinute - b.startMinute || a.endMinute - b.endMinute);
 
     return entries;
-  }, [slots]);
+  }, [slots, timezone]);
 
   const weeklyTemplatesByWeekday = useMemo(() => {
     const grouped = new Map<number, WeeklyTemplateEntry[]>();
@@ -367,9 +369,9 @@ export function UserScheduleCalendar({
 
     for (const [index, slot] of slots.entries()) {
       if (!isOneOffAvailabilitySlot(slot)) continue;
-      const dateKey = toDateKeyFromIso(slot.startAt);
-      const startMinute = minutesSinceMidnight(slot.startAt);
-      const endMinute = Math.max(startMinute + timelineStepMinutes, minutesSinceMidnight(slot.endAt));
+      const dateKey = toDateKeyFromIso(slot.startAt, timezone);
+      const startMinute = minutesSinceMidnight(slot.startAt, timezone);
+      const endMinute = Math.max(startMinute + timelineStepMinutes, slotEndMinute(slot.startAt, slot.endAt, timezone));
 
       const entry: DaySpecificEntry = {
         index,
@@ -392,7 +394,7 @@ export function UserScheduleCalendar({
     }
 
     return grouped;
-  }, [slots]);
+  }, [slots, timezone]);
 
   const dayOffEntriesByDate = useMemo(() => {
     const grouped = new Map<string, DayOffOverrideEntry[]>();
@@ -400,9 +402,9 @@ export function UserScheduleCalendar({
     for (const [index, slot] of slots.entries()) {
       if (!isDayOffOverrideSlot(slot)) continue;
 
-      const dateKey = toDateKeyFromIso(slot.startAt);
-      const startMinute = minutesSinceMidnight(slot.startAt);
-      const endMinute = Math.max(startMinute + timelineStepMinutes, minutesSinceMidnight(slot.endAt));
+      const dateKey = toDateKeyFromIso(slot.startAt, timezone);
+      const startMinute = minutesSinceMidnight(slot.startAt, timezone);
+      const endMinute = Math.max(startMinute + timelineStepMinutes, slotEndMinute(slot.startAt, slot.endAt, timezone));
 
       const entry: DayOffOverrideEntry = {
         index,
@@ -432,7 +434,7 @@ export function UserScheduleCalendar({
     }
 
     return grouped;
-  }, [slots]);
+  }, [slots, timezone]);
 
   const dayOffSignaturesByDate = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -634,7 +636,7 @@ export function UserScheduleCalendar({
   };
 
   const jumpToToday = () => {
-    const now = new Date();
+    const now = parseDateKey(toDateKeyFromIso(new Date().toISOString(), timezone));
     setToday(now);
     setMonthCursor(firstDayOfMonth(now));
     setSelectedDateKey(toDateKey(now));

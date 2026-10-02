@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.aws
+.codex
+.agents
+.env*
+generated
+postgres-data
+backups
+coverage
+*.tsbuildinfo

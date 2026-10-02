@@ -1,3 +1,4 @@
+import { requireUser } from '@/lib/server/auth/session';
 import { handleRoute } from '@/lib/server/http/responses';
 import { buildIcsEvent } from '@/lib/server/integrations/calendar/ics';
 import { calendarArtifactDownloadParams, createCalendarArtifactSchema } from '@/lib/server/schemas/calendar';
@@ -9,9 +10,10 @@ type Params = {
 
 export async function GET(_req: Request, { params }: Params) {
   return handleRoute(async () => {
+    const { userId } = await requireUser();
     const resolved = await params;
     const { artifactId } = calendarArtifactDownloadParams.parse(resolved);
-    const artifact = await getCalendarArtifact(artifactId);
+    const artifact = await getCalendarArtifact(artifactId, userId);
     const payload = createCalendarArtifactSchema.parse(artifact.payload);
     const ics = buildIcsEvent({
       ...payload,
@@ -23,6 +25,7 @@ export async function GET(_req: Request, { params }: Params) {
       headers: {
         'Content-Type': 'text/calendar; charset=utf-8',
         'Content-Disposition': `attachment; filename="lotterylunch-${artifactId}.ics"`,
+        'Cache-Control': 'private, no-store',
       },
     });
   });

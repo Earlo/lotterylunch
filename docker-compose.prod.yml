@@ -1,0 +1,38 @@
+# Supply deployment variables in the environment or Compose --env-file.
+# DATABASE_URL points to a separately managed production PostgreSQL database.
+services:
+  migrate:
+    build:
+      context: .
+      target: builder
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set the production database URL}
+    command: ['npm', 'run', 'db:deploy']
+    restart: 'no'
+
+  app:
+    build:
+      context: .
+      target: runner
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set the production database URL}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set the public HTTPS origin}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set a random production secret}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set Google OAuth client credentials}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set Google OAuth client credentials}
+    ports:
+      - '127.0.0.1:3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3

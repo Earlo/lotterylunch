@@ -7,10 +7,14 @@ export type UpdateUserProfileInput = Partial<
 >;
 
 export async function updateUserProfile(input: UpdateUserProfileInput): Promise<UserProfile> {
-  return userProfileSchema.parse(
+  const profile = userProfileSchema.parse(
     await apiFetch('/api/v1/users/me', {
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
   );
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('lotterylunch:profile-updated', { detail: profile }));
+  }
+  return profile;
 }

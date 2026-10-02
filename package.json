@@ -20,7 +20,9 @@
     "prisma:reset": "prisma migrate reset",
     "start": "next start",
     "test": "npm run test:webui && npm run test:server",
-    "test:migrations": "node --import tsx --test tests/migrations.integration.mts",
+    "test:browser": "node --import tsx tests/browser.integration.mts",
+    "test:migrations": "node --import tsx --test tests/migrations.integration.mts tests/services.integration.mts",
+    "test:production": "bash scripts/smoke-production.sh",
     "test:server": "node --import tsx --test tests/server.*.test.ts",
     "test:webui": "node --import tsx --test tests/webui.*.test.mts tests/webui.*.test.tsx",
     "typecheck": "next typegen && tsc --noEmit"

@@ -7,7 +7,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ gr
   await requirePortalSession(`/portal/groups/${resolved.groupId}`);
 
   return (
-    <AppShell title="Group detail" description="Membership, invitations, and location details live here.">
+    <AppShell title="Group detail" description="Manage membership, join the lunch lottery, and view your pairings.">
       <GroupDetailClient key={resolved.groupId} groupId={resolved.groupId} />
     </AppShell>
   );

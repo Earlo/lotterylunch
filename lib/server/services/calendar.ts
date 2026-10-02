@@ -1,7 +1,10 @@
 import crypto from 'crypto';
+import type { Prisma } from '@/generated/prisma/client';
 import { env } from '@/lib/env';
 import { prisma } from '@/lib/prisma';
-import { badRequest, notFound } from '@/lib/server/http/errors';
+import { requireGroupMembership } from '@/lib/server/auth/authorization';
+import { lockGroupForUpdate } from '@/lib/server/db/group-lock';
+import { badRequest, forbidden, notFound } from '@/lib/server/http/errors';
 import { localRedirectPath } from '@/lib/server/http/redirects';
 import {
   buildGoogleAuthUrl,
@@ -15,13 +18,23 @@ import { emitWebhookEvent } from '@/lib/server/services/webhooks';
 import { z } from 'zod';
 
 const googleConnectionStateSchema = z.object({
-  userId: z.string().optional(),
+  userId: z.string().min(1),
+  browserNonceHash: z.string().regex(/^[a-f0-9]{64}$/),
   returnTo: z.string().optional(),
 });
 
+export const GOOGLE_CALENDAR_COOKIE = 'lotterylunch.calendar-google';
+export const GOOGLE_CALENDAR_COOKIE_PATH = '/api/v1/calendar/connections/google/callback';
+export const GOOGLE_CALENDAR_STATE_SECONDS = 10 * 60;
+
+function browserNonceHash(nonce: string) {
+  if (!/^[a-f0-9]{64}$/.test(nonce)) throw badRequest('Calendar OAuth browser binding is missing or invalid');
+  return crypto.createHash('sha256').update(nonce).digest('hex');
+}
+
 export async function listCalendarConnections(userId: string) {
   const connections = await prisma.calendarConnection.findMany({
-    where: { userId },
+    where: { userId, provider: 'google' },
     orderBy: { id: 'asc' },
   });
   return connections.map((connection) => {
@@ -30,21 +43,8 @@ export async function listCalendarConnections(userId: string) {
   });
 }
 
-export async function createCalendarConnection(userId: string, provider: 'google' | 'outlook' | 'apple' | 'ics') {
-  if (provider === 'google') {
-    throw badRequest('Google Calendar requires OAuth connection flow');
-  }
-
-  const connection = await prisma.calendarConnection.create({
-    data: {
-      userId,
-      provider,
-      status: 'connected',
-      oauthTokens: {},
-    },
-  });
-
-  return { ...connection, oauthTokens: {} };
+export function createCalendarConnection(_userId: string, _provider: string): never {
+  throw badRequest('Connect Google Calendar through OAuth; ICS downloads do not require a connection');
 }
 
 export async function deleteCalendarConnection(userId: string, id: string) {
@@ -64,46 +64,62 @@ function getGoogleRedirectUri() {
   return new URL('/api/v1/calendar/connections/google/callback', env('BETTER_AUTH_URL')).toString();
 }
 
-export async function startGoogleCalendarConnection(userId: string, returnTo?: string | null) {
-  const state = crypto.randomBytes(16).toString('hex');
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+export async function startGoogleCalendarConnection(userId: string, browserNonce: string, returnTo?: string | null) {
+  const state = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + GOOGLE_CALENDAR_STATE_SECONDS * 1000);
   const normalizedReturnTo = localRedirectPath(returnTo);
+  const nonceHash = browserNonceHash(browserNonce);
+  const url = buildGoogleAuthUrl(state, getGoogleRedirectUri());
 
   await prisma.verification.create({
     data: {
       identifier: `calendar-google:${state}`,
-      value: JSON.stringify({ userId, returnTo: normalizedReturnTo }),
+      value: JSON.stringify({ userId, browserNonceHash: nonceHash, returnTo: normalizedReturnTo }),
       expiresAt,
     },
   });
 
-  const redirectUri = getGoogleRedirectUri();
-  const url = buildGoogleAuthUrl(state, redirectUri);
   return { url };
 }
 
-export async function completeGoogleCalendarConnection(params: URLSearchParams) {
+export async function completeGoogleCalendarConnection(params: URLSearchParams, userId: string, browserNonce: string) {
   const state = params.get('state');
-  if (!state) throw badRequest('Missing OAuth state');
+  if (!state || !/^[a-f0-9]{64}$/.test(state)) throw badRequest('Missing or invalid OAuth state');
+  const nonceHash = browserNonceHash(browserNonce);
 
   const identifier = `calendar-google:${state}`;
   const verification = await prisma.verification.findFirst({
     where: { identifier },
   });
 
-  if (!verification || verification.expiresAt < new Date()) {
+  if (!verification || verification.expiresAt <= new Date()) {
     throw badRequest('OAuth state is invalid or expired');
   }
 
-  let payload: z.infer<typeof googleConnectionStateSchema> = {};
+  let payload: z.infer<typeof googleConnectionStateSchema>;
   try {
     payload = googleConnectionStateSchema.parse(JSON.parse(verification.value));
   } catch {
-    payload = {};
+    throw badRequest('OAuth state is invalid or expired');
+  }
+
+  if (
+    payload.userId !== userId ||
+    !crypto.timingSafeEqual(Buffer.from(payload.browserNonceHash, 'hex'), Buffer.from(nonceHash, 'hex'))
+  ) {
+    throw badRequest('Calendar OAuth must finish in the browser and account that started it');
   }
 
   const returnTo = localRedirectPath(payload.returnTo);
-  await prisma.verification.deleteMany({ where: { identifier } });
+  const consumed = await prisma.verification.deleteMany({
+    where: {
+      id: verification.id,
+      identifier,
+      value: verification.value,
+      expiresAt: { gt: new Date() },
+    },
+  });
+  if (consumed.count !== 1) throw badRequest('OAuth state is invalid, expired, or already used');
 
   const error = params.get('error');
   if (error) {
@@ -118,32 +134,25 @@ export async function completeGoogleCalendarConnection(params: URLSearchParams) 
     throw badRequest('Google OAuth did not return an access token');
   }
 
-  if (!payload.userId) {
-    throw badRequest('Unable to identify user for calendar connection');
-  }
-
-  const existing = await prisma.calendarConnection.findFirst({
-    where: { userId: payload.userId, provider: 'google' },
+  await prisma.$transaction(async (tx) => {
+    // Separate browser sessions can finish different valid states concurrently.
+    // Serialize the lookup and write so a user gets one new Google connection.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+    const existing = await tx.calendarConnection.findFirst({
+      where: { userId, provider: 'google' },
+      orderBy: { id: 'asc' },
+    });
+    if (existing) {
+      await tx.calendarConnection.update({
+        where: { id: existing.id },
+        data: { status: 'connected', oauthTokens: tokens },
+      });
+    } else {
+      await tx.calendarConnection.create({
+        data: { userId, provider: 'google', status: 'connected', oauthTokens: tokens },
+      });
+    }
   });
-
-  if (existing) {
-    await prisma.calendarConnection.update({
-      where: { id: existing.id },
-      data: {
-        status: 'connected',
-        oauthTokens: tokens,
-      },
-    });
-  } else {
-    await prisma.calendarConnection.create({
-      data: {
-        userId: payload.userId,
-        provider: 'google',
-        status: 'connected',
-        oauthTokens: tokens,
-      },
-    });
-  }
 
   return { status: 'connected' as const, returnTo };
 }
@@ -159,7 +168,11 @@ function extractGoogleTokens(value: unknown): GoogleOAuthTokens {
   return tokens;
 }
 
-async function ensureGoogleAccessToken(connection: { id: string; oauthTokens: unknown }) {
+async function ensureGoogleAccessToken(
+  connection: { id: string; oauthTokens: unknown },
+  db: Pick<Prisma.TransactionClient, 'calendarConnection'>,
+  deadline: number,
+) {
   const tokens = extractGoogleTokens(connection.oauthTokens);
 
   const needsRefresh = tokens.expiresAt ? new Date(tokens.expiresAt).getTime() <= Date.now() + 60 * 1000 : false;
@@ -172,10 +185,10 @@ async function ensureGoogleAccessToken(connection: { id: string; oauthTokens: un
     throw badRequest('Google Calendar connection needs to be reconnected');
   }
 
-  const refreshed = await refreshGoogleAccessToken(tokens.refreshToken);
+  const refreshed = await refreshGoogleAccessToken(tokens.refreshToken, deadline);
   const merged = { ...tokens, ...refreshed };
 
-  await prisma.calendarConnection.update({
+  await db.calendarConnection.update({
     where: { id: connection.id },
     data: {
       status: 'connected',
@@ -194,33 +207,32 @@ async function createGoogleCalendarArtifact(
   matchId: string,
   userId: string,
   input: Omit<CreateCalendarArtifactInput, 'provider'>,
+  tx: Prisma.TransactionClient,
+  deadline: number,
 ) {
-  const connection = await prisma.calendarConnection.findFirst({
-    where: { userId, provider: 'google' },
+  const connection = await tx.calendarConnection.findFirst({
+    where: { userId, provider: 'google', status: 'connected' },
   });
 
   if (!connection) {
     throw badRequest('Google Calendar is not connected');
   }
 
-  const { accessToken, tokens } = await ensureGoogleAccessToken(connection);
-  const user = await prisma.user.findUnique({
+  const { accessToken, tokens } = await ensureGoogleAccessToken(connection, tx, deadline);
+  const user = await tx.user.findUnique({
     where: { id: userId },
     select: { timezone: true },
   });
 
   const timezone = input.timezone ?? user?.timezone ?? 'UTC';
 
-  const event = await createGoogleCalendarEvent(accessToken, {
-    ...input,
-    timezone,
-  });
+  const event = await createGoogleCalendarEvent(accessToken, { ...input, timezone }, deadline);
 
   if (!event.id) {
     throw badRequest('Google Calendar did not return an event id');
   }
 
-  const artifact = await prisma.calendarArtifact.create({
+  return tx.calendarArtifact.create({
     data: {
       matchId,
       type: 'google',
@@ -234,34 +246,50 @@ async function createGoogleCalendarArtifact(
       },
     },
   });
+}
 
-  await emitWebhookEvent(userId, 'calendar.artifact.created', {
-    matchId,
-    artifactId: artifact.id,
+async function requireCalendarMatchAccess(
+  matchId: string,
+  userId: string,
+  db: Pick<Prisma.TransactionClient, 'match' | 'membership'> = prisma,
+) {
+  const match = await db.match.findUnique({
+    where: { id: matchId },
+    select: { groupId: true, memberIds: true, state: true, status: true },
   });
-
-  return artifact;
+  if (!match) throw notFound('Match not found');
+  const membership = await requireGroupMembership(match.groupId, userId, undefined, db);
+  const participants = z.array(z.string()).safeParse(match.memberIds);
+  if (
+    membership.role !== 'owner' &&
+    membership.role !== 'admin' &&
+    (!participants.success || !participants.data.includes(userId))
+  ) {
+    throw forbidden('Only match participants or group administrators can access calendar artifacts');
+  }
+  if (match.state === 'cancelled' || match.status === 'canceled') {
+    throw badRequest('Calendar artifacts are unavailable for a canceled match');
+  }
 }
 
 export async function createCalendarArtifact(matchId: string, userId: string, input: CreateCalendarArtifactInput) {
-  const { provider = 'ics', ...payload } = input;
-
-  if (provider === 'google') {
-    return createGoogleCalendarArtifact(matchId, userId, payload);
-  }
-  if (provider !== 'ics') {
-    throw badRequest('Calendar provider not supported yet');
-  }
-
-  const artifact = await prisma.calendarArtifact.create({
-    data: {
-      matchId,
-      type: 'ics',
-      payload: {
-        ...payload,
-      },
+  const artifact = await prisma.$transaction(
+    async (tx) => {
+      // Reserve time to persist the response before Prisma's transaction timeout.
+      const googleDeadline = Date.now() + 18_000;
+      const match = await tx.match.findUnique({ where: { id: matchId }, select: { groupId: true } });
+      if (!match) throw notFound('Match not found');
+      // Recheck access after the same lock used by membership suspension/removal
+      // and group deletion. The lock remains held until the artifact is saved.
+      await lockGroupForUpdate(tx, match.groupId);
+      await requireCalendarMatchAccess(matchId, userId, tx);
+      const { provider = 'ics', ...payload } = input;
+      if (provider === 'google') return createGoogleCalendarArtifact(matchId, userId, payload, tx, googleDeadline);
+      if (provider !== 'ics') throw badRequest('Calendar provider not supported yet');
+      return tx.calendarArtifact.create({ data: { matchId, type: 'ics', payload } });
     },
-  });
+    { timeout: 20_000 },
+  );
 
   await emitWebhookEvent(userId, 'calendar.artifact.created', {
     matchId,
@@ -271,8 +299,9 @@ export async function createCalendarArtifact(matchId: string, userId: string, in
   return artifact;
 }
 
-export async function getCalendarArtifact(id: string) {
+export async function getCalendarArtifact(id: string, userId: string) {
   const artifact = await prisma.calendarArtifact.findUnique({ where: { id } });
   if (!artifact) throw notFound('Calendar artifact not found');
+  await requireCalendarMatchAccess(artifact.matchId, userId);
   return artifact;
 }

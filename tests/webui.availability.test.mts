@@ -7,8 +7,12 @@ import {
   isDayOffOverrideSlot,
   isOneOffAvailabilitySlot,
   isWeeklyTemplateSlot,
+  minutesSinceMidnight,
   parseWeeklyTemplateRule,
   rangesOverlap,
+  slotEndMinute,
+  toDateKeyFromIso,
+  toIsoForDateKeyAndMinute,
 } from '../lib/webui/weeklyTemplateUtils.ts';
 
 type DaySlotInput = Parameters<typeof buildDaySlotSignature>[0];
@@ -68,4 +72,20 @@ await test('day overrides distinguish dates, times, meeting types, and groups', 
   for (const change of changes) {
     assert.notEqual(signature, buildDaySlotSignature({ ...slot, ...change }));
   }
+});
+
+await test('availability editing uses the profile time zone for local dates and saved instants', () => {
+  const timezone = 'Europe/Helsinki';
+  assert.equal(toDateKeyFromIso('2026-10-01T22:30:00Z', timezone), '2026-10-02');
+  assert.equal(minutesSinceMidnight('2026-10-02T09:00:00Z', timezone), 720);
+  assert.equal(toIsoForDateKeyAndMinute('2026-10-02', 720, timezone), '2026-10-02T09:00:00.000Z');
+  assert.equal(toIsoForDateKeyAndMinute('2026-10-02', 720, 'America/New_York'), '2026-10-02T16:00:00.000Z');
+  assert.equal(toIsoForDateKeyAndMinute('2026-10-02', 1440, timezone), '2026-10-02T21:00:00.000Z');
+  assert.equal(slotEndMinute('2026-10-02T20:00:00Z', '2026-10-02T21:00:00Z', timezone), 1440);
+});
+
+await test('availability editing rejects nonexistent local times and resolves repeated times consistently', () => {
+  assert.equal(toIsoForDateKeyAndMinute('2026-03-08', 150, 'America/New_York'), null);
+  assert.equal(toIsoForDateKeyAndMinute('2026-11-01', 90, 'America/New_York'), '2026-11-01T05:30:00.000Z');
+  assert.equal(toIsoForDateKeyAndMinute('2026-03-29', 210, 'Europe/Helsinki'), null);
 });

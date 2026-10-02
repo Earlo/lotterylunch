@@ -2,10 +2,23 @@ import { z } from 'zod';
 
 export const updateUserProfileSchema = z
   .object({
-    name: z.string().trim().min(1).max(120).optional(),
-    timezone: z.string().trim().min(1).max(80).optional(),
-    image: z.string().url().optional(),
-    area: z.string().trim().min(1).max(120).optional(),
+    name: z.string().trim().min(1).max(120).nullable().optional(),
+    timezone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .refine((value) => {
+        try {
+          new Intl.DateTimeFormat('en', { timeZone: value }).resolvedOptions();
+          return true;
+        } catch {
+          return false;
+        }
+      }, 'Use a valid IANA timezone')
+      .optional(),
+    image: z.string().url().nullable().optional(),
+    area: z.string().trim().min(1).max(120).nullable().optional(),
     shortNoticePreference: z.enum(['strict', 'standard', 'flexible']).optional(),
     weekStartDay: z.enum(['monday', 'sunday']).optional(),
     clockFormat: z.enum(['h24', 'ampm']).optional(),

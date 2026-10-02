@@ -5,20 +5,13 @@ import { Notice } from '@/components/ui/Notice';
 import { getErrorMessage } from '@/lib/webui/api/client';
 import type { CalendarConnection } from '@/lib/webui/api/types';
 import { createCancelableEffect } from '@/lib/webui/cancelableEffect';
-import {
-  createCalendarConnection,
-  deleteCalendarConnection,
-  startGoogleCalendarConnection,
-} from '@/lib/webui/mutations/calendar';
+import { deleteCalendarConnection, startGoogleCalendarConnection } from '@/lib/webui/mutations/calendar';
 import { fetchCalendarConnections } from '@/lib/webui/queries/calendar';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 
 const providers: Array<{ id: CalendarConnection['provider']; label: string }> = [
   { id: 'google', label: 'Google Calendar' },
-  { id: 'outlook', label: 'Outlook' },
-  { id: 'apple', label: 'Apple Calendar' },
-  { id: 'ics', label: 'ICS Feed' },
 ];
 
 export function CalendarSettings() {
@@ -58,19 +51,13 @@ export function CalendarSettings() {
     [loadConnections],
   );
 
-  const handleConnect = async (provider: CalendarConnection['provider']) => {
+  const handleConnect = async () => {
     setBusy(true);
     setError(null);
     try {
-      if (provider === 'google') {
-        const returnTo = window.location.pathname;
-        const { url } = await startGoogleCalendarConnection(returnTo);
-        window.location.assign(url);
-        return;
-      }
-      await createCalendarConnection(provider);
-      setStatus('loading');
-      await loadConnections();
+      const returnTo = window.location.pathname;
+      const { url } = await startGoogleCalendarConnection(returnTo);
+      window.location.assign(url);
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to connect calendar.'));
     } finally {
@@ -98,7 +85,8 @@ export function CalendarSettings() {
         <p className="text-xs tracking-[0.3em] text-(--moss) uppercase">Calendar</p>
         <h2 className="text-2xl font-semibold">Calendar integrations</h2>
         <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
-          Connect calendars to publish match invites automatically.
+          Connect Google Calendar to add your matches to your calendar. You can also download an ICS file from a match
+          without connecting a calendar.
         </p>
       </div>
 
@@ -135,7 +123,7 @@ export function CalendarSettings() {
                   disabled={busy || status !== 'idle'}
                   aria-label={`Connect ${provider.label}`}
                   onClick={() => {
-                    void handleConnect(provider.id);
+                    void handleConnect();
                   }}
                 >
                   Connect

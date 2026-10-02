@@ -7,6 +7,13 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_EVENTS_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events';
 const GOOGLE_SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
+const GOOGLE_REQUEST_TIMEOUT_MS = 8_000;
+
+function googleRequestSignal(deadline?: number) {
+  const timeout = Math.min(GOOGLE_REQUEST_TIMEOUT_MS, deadline === undefined ? Infinity : deadline - Date.now());
+  if (timeout <= 0) throw badRequest('Google Calendar request timed out; please try again');
+  return AbortSignal.timeout(timeout);
+}
 
 const googleTokenResponseSchema = z.object({
   access_token: z.string().optional(),
@@ -75,9 +82,10 @@ function normalizeTokenResponse(data: GoogleTokenResponse, refreshToken?: string
   };
 }
 
-async function fetchGoogleToken(body: URLSearchParams): Promise<GoogleTokenResponse> {
+async function fetchGoogleToken(body: URLSearchParams, deadline?: number): Promise<GoogleTokenResponse> {
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
+    signal: googleRequestSignal(deadline),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
@@ -106,7 +114,7 @@ export async function exchangeGoogleCode(code: string, redirectUri: string): Pro
   return normalizeTokenResponse(data);
 }
 
-export async function refreshGoogleAccessToken(refreshToken: string): Promise<GoogleOAuthTokens> {
+export async function refreshGoogleAccessToken(refreshToken: string, deadline?: number): Promise<GoogleOAuthTokens> {
   const body = new URLSearchParams({
     client_id: env('GOOGLE_CLIENT_ID'),
     client_secret: env('GOOGLE_CLIENT_SECRET'),
@@ -114,13 +122,14 @@ export async function refreshGoogleAccessToken(refreshToken: string): Promise<Go
     grant_type: 'refresh_token',
   });
 
-  const data = await fetchGoogleToken(body);
+  const data = await fetchGoogleToken(body, deadline);
   return normalizeTokenResponse(data, refreshToken);
 }
 
 export async function createGoogleCalendarEvent(
   accessToken: string,
   input: Omit<CreateCalendarArtifactInput, 'provider'>,
+  deadline?: number,
 ): Promise<GoogleCalendarEvent> {
   const descriptionParts = [];
   if (input.meetingUrl) descriptionParts.push(`Meeting: ${input.meetingUrl}`);
@@ -142,6 +151,7 @@ export async function createGoogleCalendarEvent(
 
   const response = await fetch(GOOGLE_EVENTS_URL, {
     method: 'POST',
+    signal: googleRequestSignal(deadline),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',

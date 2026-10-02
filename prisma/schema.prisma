@@ -102,6 +102,7 @@ model User {
   apiTokens             ApiToken[]
   webhooks              WebhookEndpoint[]
   ownedGroups           Group[]                @relation("GroupOwner")
+  lunchRuns             LunchRun[]
   accounts              Account[]
   sessions              Session[]
   Authenticator         Authenticator[]
@@ -123,6 +124,7 @@ model Group {
   owner             User               @relation("GroupOwner", fields: [ownerId], references: [id])
   memberships       Membership[]
   matches           Match[]
+  lunchRuns         LunchRun[]
   availabilitySlots AvailabilitySlot[]
   invites           GroupInvite[]
   createdAt         DateTime           @default(now())
@@ -130,17 +132,18 @@ model Group {
 }
 
 model Membership {
-  id        String           @id @default(uuid()) @db.Uuid
-  userId    String
-  groupId   String           @db.Uuid
-  role      Role             @default(member)
-  groupRole GroupRole        @default(member)
-  status    MembershipStatus @default(active)
-  joinedAt  DateTime         @default(now())
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  user      User             @relation(fields: [userId], references: [id])
-  group     Group            @relation(fields: [groupId], references: [id])
+  id            String           @id @default(uuid()) @db.Uuid
+  userId        String
+  groupId       String           @db.Uuid
+  role          Role             @default(member)
+  groupRole     GroupRole        @default(member)
+  status        MembershipStatus @default(active)
+  participating Boolean          @default(false)
+  joinedAt      DateTime         @default(now())
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id])
+  group         Group            @relation(fields: [groupId], references: [id])
 
   @@unique([userId, groupId]) // one membership per group
 }
@@ -227,15 +230,39 @@ model Match {
   id                String             @id @default(uuid()) @db.Uuid
   groupId           String             @db.Uuid
   scheduledFor      DateTime?
+  scheduledUntil    DateTime?
+  lunchRunId        String?            @db.Uuid
   algorithmVersion  String?
   state             MatchState         @default(created)
   status            MatchStatus        @default(proposed)
   memberIds         Json?
   group             Group              @relation(fields: [groupId], references: [id])
+  run               LunchRun?          @relation(fields: [lunchRunId], references: [id])
   event             LunchEvent?
   calendarArtifacts CalendarArtifact[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  @@index([lunchRunId])
+  @@index([groupId, scheduledFor])
+}
+
+model LunchRun {
+  id               String   @id @default(uuid()) @db.Uuid
+  groupId          String   @db.Uuid
+  executedById     String
+  windowStart      DateTime
+  windowEnd        DateTime
+  durationMinutes  Int
+  participantIds   Json
+  unmatchedUserIds Json
+  algorithmVersion String
+  createdAt        DateTime @default(now())
+  group            Group    @relation(fields: [groupId], references: [id])
+  executedBy       User     @relation(fields: [executedById], references: [id])
+  matches          Match[]
+
+  @@index([groupId, createdAt])
 }
 
 model LunchEvent {

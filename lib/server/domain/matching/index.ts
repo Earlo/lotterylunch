@@ -12,7 +12,7 @@ export type MatchingResult = {
   algorithmVersion: string;
 };
 
-const ALGORITHM_VERSION = 'v1.seeded-greedy';
+export const MATCHING_ALGORITHM_VERSION = 'v2.seeded-greedy';
 
 function hashString(input: string) {
   let h = 2166136261 >>> 0;
@@ -58,15 +58,16 @@ function buildRecentPairSet(recentMatches: string[][]) {
   return pairs;
 }
 
-function hasRecentConflict(group: string[], recentPairs: Set<string>) {
+function countRecentConflicts(group: string[], recentPairs: Set<string>) {
+  let count = 0;
   for (let i = 0; i < group.length; i += 1) {
     for (let j = i + 1; j < group.length; j += 1) {
       if (recentPairs.has(normalizePair(group[i]!, group[j]!))) {
-        return true;
+        count += 1;
       }
     }
   }
-  return false;
+  return count;
 }
 
 function chunkGreedy(ids: string[], minSize: number, maxSize: number) {
@@ -101,32 +102,30 @@ function chunkGreedy(ids: string[], minSize: number, maxSize: number) {
 export function createMatches(input: MatchingInput): MatchingResult {
   const minSize = Math.max(2, Math.min(input.groupSizeMin, input.groupSizeMax));
   const maxSize = Math.max(minSize, input.groupSizeMax);
+  const participantIds = [...new Set(input.participantIds)];
   const recentPairs = buildRecentPairSet(input.recentMatches);
 
-  const baseSeed = `${input.seed}:${input.participantIds.length}`;
+  const baseSeed = `${input.seed}:${participantIds.length}`;
   const attempts = 6;
+  let best: MatchingResult | undefined;
+  let fewestConflicts = Number.POSITIVE_INFINITY;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const shuffled = shuffleWithSeed(input.participantIds, `${baseSeed}:${attempt}`);
+    const shuffled = shuffleWithSeed(participantIds, `${baseSeed}:${attempt}`);
     const { groups, remainder } = chunkGreedy(shuffled, minSize, maxSize);
 
-    const conflicted = groups.some((group) => hasRecentConflict(group, recentPairs));
-    if (!conflicted) {
-      return {
+    const conflicts = groups.reduce((count, group) => count + countRecentConflicts(group, recentPairs), 0);
+    if (conflicts < fewestConflicts) {
+      fewestConflicts = conflicts;
+      best = {
         matches: groups,
         unmatched: remainder,
-        algorithmVersion: ALGORITHM_VERSION,
+        algorithmVersion: MATCHING_ALGORITHM_VERSION,
       };
     }
+    if (conflicts === 0) return best!;
   }
 
-  // Fall back to best-effort final attempt even if conflicts remain.
-  const shuffled = shuffleWithSeed(input.participantIds, `${baseSeed}:fallback`);
-  const { groups, remainder } = chunkGreedy(shuffled, minSize, maxSize);
-
-  return {
-    matches: groups,
-    unmatched: remainder,
-    algorithmVersion: ALGORITHM_VERSION,
-  };
+  // If repeats are unavoidable, retain the attempt with the fewest repeated pairs.
+  return best!;
 }

@@ -8,12 +8,11 @@ import { authClient } from '@/lib/auth-client';
 import { getErrorMessage } from '@/lib/webui/api/client';
 import { updateUserProfile } from '@/lib/webui/mutations/user';
 import { fetchUserProfile } from '@/lib/webui/queries/user';
-import { useCallback, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useState, type FormEvent } from 'react';
 
 export function AccountSettings() {
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id;
-  const sessionName = session?.user?.name;
   const [name, setName] = useState('');
   const [timezone, setTimezone] = useState('');
   const [area, setArea] = useState('');
@@ -29,7 +28,7 @@ export function AccountSettings() {
         fetchUserProfile(signal)
           .then((profile) => {
             if (isCancelled()) return;
-            setName(profile.name ?? sessionName ?? '');
+            setName(profile.name ?? '');
             setTimezone(profile.timezone ?? '');
             setArea(profile.area ?? '');
             setPhotoUrl(profile.image ?? '');
@@ -41,27 +40,23 @@ export function AccountSettings() {
             setError(getErrorMessage(err, 'Unable to load profile.'));
           });
       },
-      [userId, sessionName],
+      [userId],
     ),
   );
 
   const email = session?.user?.email ?? 'Signed-in user';
-  const canSave = useMemo(
-    () => Boolean(name.trim() || timezone.trim() || area.trim() || photoUrl.trim()),
-    [name, timezone, area, photoUrl],
-  );
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!loaded || !canSave || status === 'saving') return;
+    if (!loaded || status === 'saving') return;
     setStatus('saving');
     setError(null);
     try {
       await updateUserProfile({
-        ...(name.trim() ? { name: name.trim() } : {}),
-        ...(timezone.trim() ? { timezone: timezone.trim() } : {}),
-        ...(area.trim() ? { area: area.trim() } : {}),
-        ...(photoUrl.trim() ? { image: photoUrl.trim() } : {}),
+        name: name.trim() || null,
+        timezone: timezone.trim() || 'UTC',
+        area: area.trim() || null,
+        image: photoUrl.trim() || null,
       });
       setStatus('saved');
     } catch (err) {
@@ -138,7 +133,7 @@ export function AccountSettings() {
       </fieldset>
 
       <div>
-        <Button variant="ghost" type="submit" disabled={!loaded || !canSave || status === 'saving'}>
+        <Button variant="ghost" type="submit" disabled={!loaded || status === 'saving'}>
           {status === 'saving' ? 'Saving...' : 'Save profile'}
         </Button>
       </div>

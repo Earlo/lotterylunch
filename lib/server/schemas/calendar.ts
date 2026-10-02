@@ -6,7 +6,7 @@ export const calendarConnectionIdParams = z.object({
 });
 
 export const createCalendarConnectionSchema = z.object({
-  provider: z.enum(['google', 'outlook', 'apple', 'ics']),
+  provider: z.literal('google'),
 });
 
 export const startGoogleCalendarConnectionSchema = z.object({
@@ -25,15 +25,20 @@ export const calendarArtifactDownloadParams = z.object({
     .pipe(uuidSchema),
 });
 
-export const createCalendarArtifactSchema = z.object({
-  provider: z.enum(['google', 'outlook', 'apple', 'ics']).optional(),
-  title: z.string().trim().min(1).max(200),
-  startsAt: z.string().datetime(),
-  endsAt: z.string().datetime(),
-  timezone: z.string().trim().min(1).max(80).optional(),
-  location: z.string().trim().max(200).optional(),
-  meetingUrl: z.string().url().optional(),
-  notes: z.string().max(500).optional(),
-});
+export const createCalendarArtifactSchema = z
+  .object({
+    provider: z.enum(['google', 'ics']).optional(),
+    title: z.string().trim().min(1).max(200),
+    startsAt: z.string().datetime(),
+    endsAt: z.string().datetime(),
+    timezone: z.string().trim().min(1).max(80).optional(),
+    location: z.string().trim().max(200).optional(),
+    meetingUrl: z.string().url().optional(),
+    notes: z.string().max(500).optional(),
+  })
+  .refine((input) => new Date(input.endsAt) > new Date(input.startsAt), {
+    message: 'The calendar event must end after it starts',
+    path: ['endsAt'],
+  });
 
 export type CreateCalendarArtifactInput = z.infer<typeof createCalendarArtifactSchema>;

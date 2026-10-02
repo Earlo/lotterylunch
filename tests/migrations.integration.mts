@@ -1,17 +1,11 @@
 import assert from 'node:assert/strict';
-import { spawn, type SpawnOptionsWithoutStdio } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
-import { access, cp, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
+import { cp, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import {
-  PrismaClient,
   type Account,
   type Authenticator,
   type AvailabilitySlot,
@@ -25,6 +19,7 @@ import {
   type Verification,
   type VerificationToken,
 } from '../generated/prisma/client';
+import { command, connect, databaseUrl, disposablePostgres, runtimePrisma } from './helpers/postgres.mts';
 
 type AccountRow = Omit<Account, 'legacyType' | 'legacyTokenType' | 'legacySessionState'> & {
   type: Account['legacyType'];
@@ -38,165 +33,12 @@ const migrationRoot = path.join(root, 'prisma/migrations');
 const legacyLastMigration = '20260206194000_add_week_start_and_clock_format';
 const reconciliationMigration = '20261001000000_reconcile_better_auth_and_api_schema';
 const restorationMigration = '20261001010000_restore_missing_auth_columns';
+const ownerRepairMigration = '20261002000000_repair_group_owners';
+const migrationCount = (await readdir(migrationRoot)).filter((name) => /^\d{14}_/.test(name)).length;
 
 // Prisma's DateTime columns represent UTC without a PostgreSQL time zone.
 // Parse them consistently even when the test runner uses a different time zone.
 pg.types.setTypeParser(1114, (value) => new Date(`${value.replace(' ', 'T')}Z`));
-
-function command(program: string, args: string[], options: SpawnOptionsWithoutStdio = {}) {
-  return new Promise<string>((resolve, reject) => {
-    const child = spawn(program, args, {
-      cwd: root,
-      env: process.env,
-      ...options,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const deadline = setTimeout(() => child.kill('SIGTERM'), 120_000);
-    deadline.unref();
-    let output = '';
-    child.stdout.on('data', (data: Buffer) => {
-      output += data.toString();
-    });
-    child.stderr.on('data', (data: Buffer) => {
-      output += data.toString();
-    });
-    child.on('error', (error) => {
-      clearTimeout(deadline);
-      reject(error);
-    });
-    child.on('close', (code) => {
-      clearTimeout(deadline);
-      if (code === 0) resolve(output);
-      else reject(new Error(`${program} ${args.join(' ')} failed (${code}):\n${output}`));
-    });
-  });
-}
-
-async function localPostgresBin() {
-  const candidates = [process.env.POSTGRES_BIN];
-  try {
-    candidates.push((await command('pg_config', ['--bindir'])).trim());
-  } catch {
-    /* Docker is the fallback when local server binaries are absent. */
-  }
-  try {
-    const versions = await readdir('/usr/lib/postgresql');
-    candidates.push(
-      ...versions.toSorted((a, b) => Number(b) - Number(a)).map((version) => `/usr/lib/postgresql/${version}/bin`),
-    );
-  } catch {
-    /* This path is specific to Debian-based systems. */
-  }
-  const available = await Promise.all(
-    candidates
-      .filter((candidate): candidate is string => Boolean(candidate))
-      .map(async (candidate) => {
-        try {
-          await Promise.all(['initdb', 'pg_ctl'].map((name) => access(path.join(candidate, name))));
-          return candidate;
-        } catch {
-          /* Client-only installations cannot start a disposable server. */
-          return undefined;
-        }
-      }),
-  );
-  return available.find((candidate) => candidate !== undefined);
-}
-
-async function unusedPort() {
-  const server = createServer();
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
-  });
-  const address = server.address();
-  assert.ok(address && typeof address !== 'string');
-  const port = address.port;
-  await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
-  return port;
-}
-
-async function disposablePostgres(workdir: string) {
-  const bin = await localPostgresBin();
-  if (bin && process.getuid?.() !== 0) {
-    const data = path.join(workdir, 'postgres');
-    const port = await unusedPort();
-    await command(path.join(bin, 'initdb'), ['-D', data, '-U', 'postgres', '-A', 'trust', '--no-locale']);
-    await command(path.join(bin, 'pg_ctl'), [
-      '-D',
-      data,
-      '-l',
-      path.join(workdir, 'postgres.log'),
-      '-o',
-      `-h 127.0.0.1 -p ${port} -k ${workdir}`,
-      '-w',
-      'start',
-    ]);
-    return {
-      url: `postgresql://postgres@127.0.0.1:${port}/postgres`,
-      stop: () => command(path.join(bin, 'pg_ctl'), ['-D', data, '-m', 'immediate', '-w', 'stop']),
-    };
-  }
-
-  const name = `lotterylunch-migrations-${randomBytes(8).toString('hex')}`;
-  const password = randomBytes(16).toString('hex');
-  try {
-    await command('docker', [
-      'run',
-      '--detach',
-      '--rm',
-      '--name',
-      name,
-      '--publish',
-      '127.0.0.1::5432',
-      '--tmpfs',
-      '/var/lib/postgresql',
-      '--env',
-      `POSTGRES_PASSWORD=${password}`,
-      'postgres:18',
-    ]);
-    const address = (await command('docker', ['port', name, '5432'])).trim();
-    assert.match(address, /^127\.0\.0\.1:\d+$/);
-    return {
-      url: `postgresql://postgres:${password}@${address}/postgres`,
-      stop: () => command('docker', ['rm', '--force', name]),
-    };
-  } catch (error) {
-    await command('docker', ['rm', '--force', name]).catch(() => {});
-    throw new Error(
-      'Migration tests require local PostgreSQL server binaries (set POSTGRES_BIN if needed) or Docker. They never use DATABASE_URL.',
-      { cause: error },
-    );
-  }
-}
-
-async function connect(url: string) {
-  const deadline = Date.now() + 30_000;
-  let lastError = new Error('Timed out connecting to disposable PostgreSQL');
-  // oxlint-disable no-await-in-loop -- Each connection retry depends on the preceding attempt and backoff.
-  while (Date.now() < deadline) {
-    const client = new pg.Client({
-      connectionString: url,
-      connectionTimeoutMillis: 1000,
-    });
-    try {
-      await client.connect();
-      return client;
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error('PostgreSQL connection failed', { cause: error });
-      await client.end().catch(() => {});
-      await delay(200);
-    }
-  }
-  // oxlint-enable no-await-in-loop
-  throw lastError;
-}
-
-function databaseUrl(url: string, database: string) {
-  const result = new URL(url);
-  result.pathname = `/${database}`;
-  return result.toString();
-}
 
 async function prismaConfig(filename: string, schema: string, migrations: string) {
   await writeFile(
@@ -232,10 +74,6 @@ async function assertSchemaMatches(url: string, config: string) {
     ],
     config,
   );
-}
-
-function runtimePrisma(url: string) {
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
 }
 
 async function schemaSnapshot(client: pg.Client) {
@@ -323,12 +161,15 @@ void test('migration history builds the current schema and preserves legacy reco
   let admin: pg.Client | undefined;
   try {
     server = await disposablePostgres(workdir);
+    const serverUrl = server.url;
     admin = await connect(server.url);
     await admin.query('CREATE DATABASE migration_fresh');
     await admin.query('CREATE DATABASE migration_legacy');
     await admin.query('CREATE DATABASE migration_preexisting');
     await admin.query('CREATE DATABASE migration_recorded');
     await admin.query('CREATE DATABASE migration_shadow');
+    await admin.query('CREATE DATABASE migration_initial');
+    await admin.query('CREATE DATABASE migration_initial_failed');
     const freshUrl = databaseUrl(server.url, 'migration_fresh');
     const legacyUrl = databaseUrl(server.url, 'migration_legacy');
     const preexistingUrl = databaseUrl(server.url, 'migration_preexisting');
@@ -384,6 +225,129 @@ void test('migration history builds the current schema and preserves legacy reco
         );
       } finally {
         await runtimeClient.$disconnect();
+      }
+    });
+
+    await t.test(
+      'populated initial schemas preserve photos and timestamps through explicit recovery',
+      async (initialTest) => {
+        const initialMigration = '20250514224159_init';
+        const nextauthMigration = '20250519153939_nextauth';
+        const recovery = await readFile(path.join(root, 'prisma/recovery/upgrade-initial-nextauth.sql'), 'utf8');
+        // Each database exercises a different migration history and must advance sequentially.
+        // oxlint-disable no-await-in-loop -- Recovery operations depend on each database's preceding schema state.
+        for (const failed of [false, true]) {
+          await initialTest.test(
+            failed
+              ? 'recovers a previously failed NextAuth migration'
+              : 'upgrades before historical migration is attempted',
+            async () => {
+              const initialUrl = databaseUrl(serverUrl, failed ? 'migration_initial_failed' : 'migration_initial');
+              const initialRoot = path.join(workdir, failed ? 'initial-failed' : 'initial-clean');
+              await cp(path.join(migrationRoot, 'migration_lock.toml'), path.join(initialRoot, 'migration_lock.toml'), {
+                recursive: true,
+              });
+              await cp(path.join(migrationRoot, initialMigration), path.join(initialRoot, initialMigration), {
+                recursive: true,
+              });
+              const config = await prismaConfig(
+                path.join(workdir, `${failed ? 'failed' : 'clean'}.config.mjs`),
+                path.join(root, 'prisma/schema.prisma'),
+                initialRoot,
+              );
+              await prisma(initialUrl, ['migrate', 'deploy'], config);
+              const client = await connect(initialUrl);
+              const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+              try {
+                await client.query(
+                  'INSERT INTO "User" ("id", "email", "authProvider", "photoUrl", "createdAt") VALUES ($1,$2,$3,$4,$5)',
+                  [id, 'initial@example.test', 'google', 'https://example.test/photo.jpg', '2025-05-15T09:00:00Z'],
+                );
+                if (failed) {
+                  await cp(path.join(migrationRoot, nextauthMigration), path.join(initialRoot, nextauthMigration), {
+                    recursive: true,
+                  });
+                  await assert.rejects(prisma(initialUrl, ['migrate', 'deploy'], config), /updatedAt|23502/);
+                  await assert.rejects(prisma(initialUrl, ['migrate', 'deploy'], config), /P3009/);
+                }
+                await client.query(recovery);
+                const recovered = (
+                  await client.query<{ image: string; updatedAt: Date }>(
+                    'SELECT "image", "updatedAt" FROM "User" WHERE id = $1',
+                    [id],
+                  )
+                ).rows[0];
+                assert.equal(recovered?.image, 'https://example.test/photo.jpg');
+                assert.equal(recovered?.updatedAt.toISOString(), '2025-05-15T09:00:00.000Z');
+                await prisma(initialUrl, ['migrate', 'resolve', '--applied', nextauthMigration], currentConfig);
+                await prisma(initialUrl, ['migrate', 'deploy'], currentConfig);
+                await assertSchemaMatches(initialUrl, currentConfig);
+                const runtime = runtimePrisma(initialUrl);
+                try {
+                  const user = await runtime.user.findUniqueOrThrow({ where: { id } });
+                  assert.equal(user.image, 'https://example.test/photo.jpg');
+                  assert.equal(user.updatedAt.toISOString(), '2025-05-15T09:00:00.000Z');
+                } finally {
+                  await runtime.$disconnect();
+                }
+                await assert.rejects(client.query(recovery), /successfully applied later migrations/);
+                await client.query('ROLLBACK');
+                assert.equal(
+                  (await client.query<{ count: number }>('SELECT count(*)::int AS count FROM "User"')).rows[0]?.count,
+                  1,
+                );
+              } finally {
+                await client.end();
+              }
+            },
+          );
+        }
+        // oxlint-enable no-await-in-loop
+      },
+    );
+
+    await t.test('owner repair restores overwritten or missing owners and removes stray ownership roles', async () => {
+      const db = runtimePrisma(freshUrl);
+      const client = await connect(freshUrl);
+      try {
+        const owner = await db.user.findUniqueOrThrow({ where: { email: 'fresh@example.test' } });
+        const administrator = await db.user.create({ data: { email: 'rogue-owner@example.test' } });
+        const damaged = await db.group.create({ data: { ownerId: owner.id, name: 'Damaged owner' } });
+        const missing = await db.group.create({ data: { ownerId: owner.id, name: 'Missing owner membership' } });
+        const overwritten = await db.membership.create({
+          data: { userId: owner.id, groupId: damaged.id, role: 'member', groupRole: 'member', status: 'pending' },
+        });
+        const rogue = await db.membership.create({
+          data: { userId: administrator.id, groupId: damaged.id, role: 'owner', groupRole: 'owner', status: 'active' },
+        });
+        const suspendedGroup = await db.group.create({ data: { ownerId: owner.id, name: 'Suspension remains' } });
+        const suspended = await db.membership.create({
+          data: { userId: administrator.id, groupId: suspendedGroup.id, status: 'suspended' },
+        });
+        await client.query('DELETE FROM "_prisma_migrations" WHERE migration_name = $1', [ownerRepairMigration]);
+        await prisma(freshUrl, ['migrate', 'deploy'], currentConfig);
+        const restored = await db.membership.findUniqueOrThrow({ where: { id: overwritten.id } });
+        assert.equal(restored.role, 'owner');
+        assert.equal(restored.groupRole, 'owner');
+        assert.equal(restored.status, 'active');
+        assert.equal(restored.joinedAt.getTime(), overwritten.joinedAt.getTime());
+        assert.equal((await db.membership.findUniqueOrThrow({ where: { id: rogue.id } })).role, 'member');
+        assert.equal(
+          (
+            await db.membership.findUniqueOrThrow({
+              where: { userId_groupId: { userId: owner.id, groupId: missing.id } },
+            })
+          ).role,
+          'owner',
+        );
+        assert.deepEqual(await db.membership.findUniqueOrThrow({ where: { id: suspended.id } }), suspended);
+        // Repeated repair leaves valid memberships and timestamps unchanged.
+        await client.query(await readFile(path.join(migrationRoot, ownerRepairMigration, 'migration.sql'), 'utf8'));
+        assert.deepEqual(await db.membership.findUniqueOrThrow({ where: { id: overwritten.id } }), restored);
+        await assertSchemaMatches(freshUrl, currentConfig);
+      } finally {
+        await db.$disconnect();
+        await client.end();
       }
     });
 
@@ -632,7 +596,7 @@ void test('migration history builds the current schema and preserves legacy reco
               'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m ORDER BY migration_name',
             )
           ).rows;
-          assert.equal(previousHistory.length, 5);
+          assert.equal(previousHistory.length, migrationCount - 2);
           const originalSchema = await schemaSnapshot(client);
           const originalData = await authDataSnapshot(client);
           assert.equal(originalData.length, 7);
@@ -734,7 +698,7 @@ void test('migration history builds the current schema and preserves legacy reco
             'SELECT to_jsonb(m)::text AS record FROM "_prisma_migrations" m ORDER BY migration_name',
           )
         ).rows;
-        assert.equal(originalHistory.length, 6);
+        assert.equal(originalHistory.length, migrationCount - 1);
         const originalData = await authDataSnapshot(client);
         assert.equal(originalData.length, 7);
         const accountLookup = {

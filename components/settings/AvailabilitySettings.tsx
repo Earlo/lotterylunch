@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Notice } from '@/components/ui/Notice';
 import { useCancelableEffect } from '@/hooks/useCancelableEffect';
 import { getErrorMessage } from '@/lib/webui/api/client';
+import { userProfileSchema } from '@/lib/webui/api/schemas';
 import type { AvailabilitySlot, GroupSummary } from '@/lib/webui/api/types';
 import { updateAvailability } from '@/lib/webui/mutations/calendar';
 import { fetchAvailability } from '@/lib/webui/queries/calendar';
@@ -20,9 +21,11 @@ import {
   parseDateKey,
   parseWeeklyTemplateRule,
   rangesOverlap,
+  slotEndMinute,
   toDateKeyFromIso,
+  toIsoForDateKeyAndMinute,
 } from '@/lib/webui/weeklyTemplateUtils';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type DayInterval = {
   startMinute: number;
@@ -49,13 +52,6 @@ function rangesOverlapOrTouch(startA: number, endA: number, startB: number, endB
   return startA <= endB && startB <= endA;
 }
 
-function toIsoForDateKeyAndMinute(dateKey: string, minute: number) {
-  const date = parseDateKey(dateKey);
-  date.setHours(0, 0, 0, 0);
-  date.setMinutes(minute);
-  return date.toISOString();
-}
-
 function serializeSlotsForDirtyCheck(inputSlots: AvailabilitySlot[]) {
   const normalized = inputSlots
     .map((slot) => ({
@@ -77,7 +73,7 @@ function serializeSlotsForDirtyCheck(inputSlots: AvailabilitySlot[]) {
   return JSON.stringify(normalized);
 }
 
-function getDayContext(currentSlots: AvailabilitySlot[], dateKey: string): DayContext {
+function getDayContext(currentSlots: AvailabilitySlot[], dateKey: string, timezone: string): DayContext {
   const dayOffSignatures = new Set<string>();
   const activeIntervals: DayInterval[] = [];
   const weekday = parseDateKey(dateKey).getDay();
@@ -94,8 +90,8 @@ function getDayContext(currentSlots: AvailabilitySlot[], dateKey: string): DayCo
   for (const slot of currentSlots) {
     const parsedRule = parseWeeklyTemplateRule(slot.recurringRule);
     if (parsedRule) {
-      const startMinute = minutesSinceMidnight(slot.startAt);
-      const endMinute = Math.max(startMinute + minimumSlotMinutes, minutesSinceMidnight(slot.endAt));
+      const startMinute = minutesSinceMidnight(slot.startAt, timezone);
+      const endMinute = Math.max(startMinute + minimumSlotMinutes, slotEndMinute(slot.startAt, slot.endAt, timezone));
 
       weeklyEntries.push({
         weekday: parsedRule.weekday,
@@ -108,11 +104,11 @@ function getDayContext(currentSlots: AvailabilitySlot[], dateKey: string): DayCo
       continue;
     }
 
-    const slotDateKey = toDateKeyFromIso(slot.startAt);
+    const slotDateKey = toDateKeyFromIso(slot.startAt, timezone);
     if (slotDateKey !== dateKey) continue;
 
-    const startMinute = minutesSinceMidnight(slot.startAt);
-    const endMinute = Math.max(startMinute + minimumSlotMinutes, minutesSinceMidnight(slot.endAt));
+    const startMinute = minutesSinceMidnight(slot.startAt, timezone);
+    const endMinute = Math.max(startMinute + minimumSlotMinutes, slotEndMinute(slot.startAt, slot.endAt, timezone));
 
     if (isDayOffOverrideSlot(slot)) {
       dayOffSignatures.add(
@@ -158,6 +154,7 @@ function mergeWeeklySlotInto(
   weekday: number,
   startMinute: number,
   endMinute: number,
+  timezone: string,
 ): { nextSlots: AvailabilitySlot[]; error: string | null } {
   const range = normalizeRange(startMinute, endMinute);
   const newSlotType: AvailabilitySlot['type'] = 'lunch';
@@ -177,8 +174,11 @@ function mergeWeeklySlotInto(
         continue;
       }
 
-      const existingStart = minutesSinceMidnight(slot.startAt);
-      const existingEnd = Math.max(existingStart + minimumSlotMinutes, minutesSinceMidnight(slot.endAt));
+      const existingStart = minutesSinceMidnight(slot.startAt, timezone);
+      const existingEnd = Math.max(
+        existingStart + minimumSlotMinutes,
+        slotEndMinute(slot.startAt, slot.endAt, timezone),
+      );
 
       if (!rangesOverlapOrTouch(mergedStart, mergedEnd, existingStart, existingEnd)) {
         continue;
@@ -209,21 +209,22 @@ function mergeWeeklySlotInto(
     };
   }
 
-  const now = new Date();
-  const anchorDate = new Date(now);
-  anchorDate.setHours(0, 0, 0, 0);
-  anchorDate.setDate(now.getDate() + weekday - now.getDay());
-  const startAt = new Date(anchorDate);
-  startAt.setMinutes(mergedStart);
-  const endAt = new Date(anchorDate);
-  endAt.setMinutes(mergedEnd);
+  const todayKey = toDateKeyFromIso(new Date().toISOString(), timezone);
+  const anchorDate = new Date(`${todayKey}T00:00:00Z`);
+  anchorDate.setUTCDate(anchorDate.getUTCDate() + weekday - anchorDate.getUTCDay());
+  const dateKey = anchorDate.toISOString().slice(0, 10);
+  const startAt = toIsoForDateKeyAndMinute(dateKey, mergedStart, timezone);
+  const endAt = toIsoForDateKeyAndMinute(dateKey, mergedEnd, timezone);
+  if (!startAt || !endAt) {
+    return { nextSlots: currentSlots, error: 'That local time does not exist on this date. Choose another time.' };
+  }
 
   const nextSlots = currentSlots.filter((_, index) => !mergeableIndices.has(index));
   nextSlots.push({
     id: `local-weekly-${weekday}-${mergedStart}-${mergedEnd}-${Date.now()}`,
     userId: 'me',
-    startAt: startAt.toISOString(),
-    endAt: endAt.toISOString(),
+    startAt,
+    endAt,
     type: newSlotType,
     groupId: newSlotGroupId ?? null,
     recurringRule: buildWeeklyTemplateRule(weekday, true),
@@ -242,11 +243,27 @@ export function AvailabilitySettings() {
   const [error, setError] = useState<string | null>(null);
   const [groupError, setGroupError] = useState<string | null>(null);
   const [weekStartDay, setWeekStartDay] = useState<'monday' | 'sunday'>('monday');
+  const [timezone, setTimezone] = useState('UTC');
   const [clockFormat, setClockFormat] = useState<'h24' | 'ampm'>('h24');
   const [lastSavedSignature, setLastSavedSignature] = useState('');
   const [loaded, setLoaded] = useState(false);
   const slotSignature = useMemo(() => serializeSlotsForDirtyCheck(slots), [slots]);
   const hasUnsavedChanges = loaded && slotSignature !== lastSavedSignature;
+
+  useEffect(() => {
+    const updatePreferences = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return;
+      const detail: unknown = event.detail;
+      const result = userProfileSchema.safeParse(detail);
+      if (!result.success) return;
+      const profile = result.data;
+      setTimezone(profile.timezone || 'UTC');
+      if (profile.weekStartDay) setWeekStartDay(profile.weekStartDay);
+      if (profile.clockFormat) setClockFormat(profile.clockFormat);
+    };
+    window.addEventListener('lotterylunch:profile-updated', updatePreferences);
+    return () => window.removeEventListener('lotterylunch:profile-updated', updatePreferences);
+  }, []);
 
   const reload = useCancelableEffect(
     useCallback((isCancelled, signal) => {
@@ -255,15 +272,23 @@ export function AvailabilitySettings() {
           if (isCancelled()) return;
           const [availabilityResult, groupsResult, profileResult] = results;
 
-          if (availabilityResult.status === 'fulfilled') {
+          if (availabilityResult.status === 'fulfilled' && profileResult.status === 'fulfilled') {
             setSlots(availabilityResult.value);
             setLastSavedSignature(serializeSlotsForDirtyCheck(availabilityResult.value));
+            setTimezone(profileResult.value.timezone || 'UTC');
             setError(null);
             setStatus('idle');
             setLoaded(true);
           } else {
-            setError(getErrorMessage(availabilityResult.reason, 'Unable to load preferred times.'));
+            const reason: unknown =
+              availabilityResult.status === 'rejected'
+                ? availabilityResult.reason
+                : profileResult.status === 'rejected'
+                  ? profileResult.reason
+                  : null;
+            setError(getErrorMessage(reason, 'Unable to load preferred times and time zone.'));
             setStatus('error');
+            setLoaded(false);
           }
 
           if (groupsResult.status === 'fulfilled') {
@@ -291,7 +316,7 @@ export function AvailabilitySettings() {
   );
 
   const createWeeklySlot = (weekday: number, startMinute: number, endMinute: number) => {
-    const result = mergeWeeklySlotInto(slots, weekday, startMinute, endMinute);
+    const result = mergeWeeklySlotInto(slots, weekday, startMinute, endMinute, timezone);
     if (result.error) {
       setError(result.error);
       return;
@@ -306,7 +331,7 @@ export function AvailabilitySettings() {
     let nextSlots = slots;
 
     for (let weekday = 0; weekday < 7; weekday += 1) {
-      const result = mergeWeeklySlotInto(nextSlots, weekday, startMinute, endMinute);
+      const result = mergeWeeklySlotInto(nextSlots, weekday, startMinute, endMinute, timezone);
       if (result.error) {
         setError(result.error);
         return;
@@ -335,10 +360,13 @@ export function AvailabilitySettings() {
 
       for (const [index, slot] of slots.entries()) {
         if (!isOneOffAvailabilitySlot(slot)) continue;
-        if (toDateKeyFromIso(slot.startAt) !== dateKey) continue;
+        if (toDateKeyFromIso(slot.startAt, timezone) !== dateKey) continue;
 
-        const existingStart = minutesSinceMidnight(slot.startAt);
-        const existingEnd = Math.max(existingStart + minimumSlotMinutes, minutesSinceMidnight(slot.endAt));
+        const existingStart = minutesSinceMidnight(slot.startAt, timezone);
+        const existingEnd = Math.max(
+          existingStart + minimumSlotMinutes,
+          slotEndMinute(slot.startAt, slot.endAt, timezone),
+        );
 
         if (!rangesOverlapOrTouch(mergedStart, mergedEnd, existingStart, existingEnd)) {
           continue;
@@ -367,6 +395,12 @@ export function AvailabilitySettings() {
       return;
     }
 
+    const startAt = toIsoForDateKeyAndMinute(dateKey, mergedStart, timezone);
+    const endAt = toIsoForDateKeyAndMinute(dateKey, mergedEnd, timezone);
+    if (!startAt || !endAt) {
+      setError('That local time does not exist on this date. Choose another time.');
+      return;
+    }
     const nextSlots = slots.filter((_, index) => !mergeableIndices.has(index));
 
     setSlots([
@@ -374,8 +408,8 @@ export function AvailabilitySettings() {
       {
         id: `local-day-${dateKey}-${mergedStart}-${mergedEnd}-${Date.now()}`,
         userId: 'me',
-        startAt: toIsoForDateKeyAndMinute(dateKey, mergedStart),
-        endAt: toIsoForDateKeyAndMinute(dateKey, mergedEnd),
+        startAt,
+        endAt,
         type: newSlotType,
         groupId: newSlotGroupId ?? null,
       },
@@ -393,19 +427,25 @@ export function AvailabilitySettings() {
     groupId?: string | null;
   }) => {
     const signature = buildDaySlotSignature(input);
-    const dayContext = getDayContext(slots, input.dateKey);
+    const dayContext = getDayContext(slots, input.dateKey, timezone);
 
     if (dayContext.dayOffSignatures.has(signature)) {
       return;
     }
 
+    const startAt = toIsoForDateKeyAndMinute(input.dateKey, input.startMinute, timezone);
+    const endAt = toIsoForDateKeyAndMinute(input.dateKey, input.endMinute, timezone);
+    if (!startAt || !endAt) {
+      setError('That local time does not exist on this date. Choose another time.');
+      return;
+    }
     setSlots((current) => [
       ...current,
       {
         id: `local-day-off-${input.dateKey}-${current.length}`,
         userId: 'me',
-        startAt: toIsoForDateKeyAndMinute(input.dateKey, input.startMinute),
-        endAt: toIsoForDateKeyAndMinute(input.dateKey, input.endMinute),
+        startAt,
+        endAt,
         type: input.type,
         groupId: input.groupId ?? null,
         recurringRule: buildDayOffOverrideRule(),
@@ -420,11 +460,14 @@ export function AvailabilitySettings() {
     const overrideSlot = slots[overrideIndex];
     if (!overrideSlot || !isDayOffOverrideSlot(overrideSlot)) return;
 
-    const dateKey = toDateKeyFromIso(overrideSlot.startAt);
-    const startMinute = minutesSinceMidnight(overrideSlot.startAt);
-    const endMinute = Math.max(startMinute + minimumSlotMinutes, minutesSinceMidnight(overrideSlot.endAt));
+    const dateKey = toDateKeyFromIso(overrideSlot.startAt, timezone);
+    const startMinute = minutesSinceMidnight(overrideSlot.startAt, timezone);
+    const endMinute = Math.max(
+      startMinute + minimumSlotMinutes,
+      slotEndMinute(overrideSlot.startAt, overrideSlot.endAt, timezone),
+    );
 
-    const dayContext = getDayContext(slots, dateKey);
+    const dayContext = getDayContext(slots, dateKey, timezone);
 
     const hasOverlap = dayContext.activeIntervals.some((interval) =>
       rangesOverlap(startMinute, endMinute, interval.startMinute, interval.endMinute),
@@ -449,19 +492,19 @@ export function AvailabilitySettings() {
       const weeklyRule = parseWeeklyTemplateRule(slotToDelete.recurringRule);
       if (!weeklyRule) return withoutDeleted;
 
-      const deletedStartMinute = minutesSinceMidnight(slotToDelete.startAt);
+      const deletedStartMinute = minutesSinceMidnight(slotToDelete.startAt, timezone);
       const deletedEndMinute = Math.max(
         deletedStartMinute + minimumSlotMinutes,
-        minutesSinceMidnight(slotToDelete.endAt),
+        slotEndMinute(slotToDelete.startAt, slotToDelete.endAt, timezone),
       );
       const deletedGroupId = slotToDelete.groupId ?? null;
 
       return withoutDeleted.filter((slot) => {
         if (!isDayOffOverrideSlot(slot)) return true;
-        if (new Date(slot.startAt).getDay() !== weeklyRule.weekday) return true;
+        if (parseDateKey(toDateKeyFromIso(slot.startAt, timezone)).getDay() !== weeklyRule.weekday) return true;
 
-        const startMinute = minutesSinceMidnight(slot.startAt);
-        const endMinute = Math.max(startMinute + minimumSlotMinutes, minutesSinceMidnight(slot.endAt));
+        const startMinute = minutesSinceMidnight(slot.startAt, timezone);
+        const endMinute = Math.max(startMinute + minimumSlotMinutes, slotEndMinute(slot.startAt, slot.endAt, timezone));
 
         return !(
           startMinute === deletedStartMinute &&
@@ -505,13 +548,15 @@ export function AvailabilitySettings() {
         <h2 className="text-2xl font-semibold">Preferred times</h2>
         <p className="mt-1 text-sm text-[rgba(20,18,21,0.7)]">
           Weekly timeline is your default. Use the calendar to disable a default on a specific date or add one-off
-          slots.
+          slots. Times use your profile time zone, {timezone}.
         </p>
       </div>
 
       {loaded ? (
         <div inert={status === 'saving'} aria-busy={status === 'saving'}>
           <UserScheduleCalendar
+            key={timezone}
+            timezone={timezone}
             slots={slots}
             groups={groups}
             weekStartDay={weekStartDay}

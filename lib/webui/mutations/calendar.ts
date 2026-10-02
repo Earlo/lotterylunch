@@ -1,15 +1,6 @@
 import { apiFetch } from '@/lib/webui/api/client';
-import { calendarConnectionSchema, googleCalendarRedirectSchema } from '@/lib/webui/api/schemas';
-import type { AvailabilitySlot, CalendarConnection } from '@/lib/webui/api/types';
-
-export async function createCalendarConnection(provider: CalendarConnection['provider']) {
-  return calendarConnectionSchema.parse(
-    await apiFetch('/api/v1/calendar/connections', {
-      method: 'POST',
-      body: JSON.stringify({ provider }),
-    }),
-  );
-}
+import { googleCalendarRedirectSchema } from '@/lib/webui/api/schemas';
+import type { AvailabilitySlot } from '@/lib/webui/api/types';
 
 export async function startGoogleCalendarConnection(returnTo?: string) {
   return googleCalendarRedirectSchema.parse(
@@ -36,7 +27,7 @@ export async function updateAvailability(slots: Array<Omit<AvailabilitySlot, 'id
 export async function createCalendarArtifact(
   matchId: string,
   input: {
-    provider?: CalendarConnection['provider'];
+    provider?: 'google' | 'ics';
     title: string;
     startsAt: string;
     endsAt: string;

@@ -10,6 +10,9 @@ export const groupSummarySchema = z.object({
 
 export const groupDetailSchema = groupSummarySchema.extend({
   description: z.string().nullish(),
+  ownerId: z.string().optional(),
+  defaultGroupSize: z.number().int().default(2),
+  timezone: z.string().default('UTC'),
 });
 
 export const userProfileSchema = z.object({
@@ -30,6 +33,7 @@ export const membershipSchema = z.object({
   groupId: z.string(),
   role: z.enum(['owner', 'admin', 'member']),
   status: z.enum(['pending', 'active', 'suspended']),
+  participating: z.boolean().default(false),
   joinedAt: z.string(),
   user: z
     .object({
@@ -54,7 +58,7 @@ export const groupInviteSchema = z.object({
 export const calendarConnectionSchema = z.object({
   id: z.string(),
   userId: z.string(),
-  provider: z.enum(['google', 'outlook', 'apple', 'ics']),
+  provider: z.literal('google'),
   status: z.string(),
   oauthTokens: z.record(z.string(), z.unknown()),
 });

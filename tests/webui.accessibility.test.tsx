@@ -67,6 +67,34 @@ await test('feedback announces status messages and errors with their appropriate
   assert.match(renderToStaticMarkup(<Notice role="alert">Failed</Notice>), /role="alert"/);
 });
 
+await test('weekly schedule labels use the profile zone when it differs from the browser zone', () => {
+  const html = renderToStaticMarkup(
+    <UserScheduleCalendar
+      slots={[
+        {
+          id: 'weekly-profile-zone',
+          userId: 'me',
+          type: 'lunch',
+          startAt: '2026-10-05T09:00:00Z',
+          endAt: '2026-10-05T10:00:00Z',
+          recurringRule: 'FREQ=WEEKLY;BYDAY=MO',
+        },
+      ]}
+      groups={[]}
+      timezone="Europe/Helsinki"
+      weekStartDay="monday"
+      clockFormat="ampm"
+      onCreateWeeklySlot={noop}
+      onCreateWeeklySlotForAllWeekdays={noop}
+      onDeleteSlot={noop}
+      onCreateDaySlot={noop}
+      onDisableWeeklySlotForDay={noop}
+      onEnableWeeklySlotForDay={noop}
+    />,
+  );
+  assert.match(html, /12:00 PM - 1:00 PM/);
+});
+
 await test('shared controls resolve conflicting size and caller utility classes', () => {
   const button = renderToStaticMarkup(
     <Button size="sm" className="px-8">

@@ -12,12 +12,10 @@ export default function HomePage() {
       <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-16">
         <div className="flex flex-col gap-6">
           <p className="text-sm tracking-[0.3em] text-(--moss) uppercase">LotteryLunch Portal</p>
-          <h1 className="text-4xl leading-tight font-semibold sm:text-5xl">
-            Keep lunch pairings human, automatic, and unmistakably you.
-          </h1>
+          <h1 className="text-4xl leading-tight font-semibold sm:text-5xl">Meet someone new over lunch.</h1>
           <p className="max-w-2xl text-lg text-[rgba(20,18,21,0.7)]">
-            LotteryLunch is an API-first pairing engine with a focused portal for teams to manage groups, keep calendars
-            aligned, and see who they are meeting next.
+            Create a group, choose your available times, and opt into the lunch lottery. Your organizer draws pairings
+            when the group is ready, and you can add your lunch to your calendar.
           </p>
           <div className="flex flex-wrap gap-3">
             <AuthButton />
@@ -35,11 +33,11 @@ export default function HomePage() {
             },
             {
               title: 'Human pairing rules',
-              body: 'Pairings respect recent history and flexible match sizes.',
+              body: 'Draw pairings from participating members with overlapping lunch availability.',
             },
             {
               title: 'Calendar-ready output',
-              body: 'Matches can generate calendar artifacts and reminders.',
+              body: 'Download a private ICS event or add your lunch to your connected Google Calendar.',
             },
           ].map((item) => (
             <Card key={item.title} title={item.title}>

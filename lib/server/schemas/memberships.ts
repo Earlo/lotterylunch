@@ -12,7 +12,7 @@ export const membershipIdParamsSchema = z.object({
 
 export const createMembershipSchema = z.object({
   userId: stringIdSchema.optional(),
-  role: z.enum(['owner', 'admin', 'member']).optional(),
+  role: z.enum(['admin', 'member']).optional(),
   status: z.enum(['pending', 'active', 'suspended']).optional(),
   note: nonEmptyString.max(500).optional(),
 });
@@ -21,7 +21,7 @@ export type CreateMembershipInput = z.infer<typeof createMembershipSchema>;
 
 export const updateMembershipSchema = z
   .object({
-    role: z.enum(['owner', 'admin', 'member']).optional(),
+    role: z.enum(['admin', 'member']).optional(),
     status: z.enum(['pending', 'active', 'suspended']).optional(),
   })
   .refine((val) => Object.keys(val).length > 0, {
@@ -29,3 +29,7 @@ export const updateMembershipSchema = z
   });
 
 export type UpdateMembershipInput = z.infer<typeof updateMembershipSchema>;
+
+export const transferGroupOwnershipSchema = z.object({
+  userId: stringIdSchema,
+});
