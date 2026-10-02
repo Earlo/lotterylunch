@@ -1,6 +1,6 @@
 import { requireUser } from '@/lib/server/auth/session';
 import { handleRoute } from '@/lib/server/http/responses';
-import { buildIcsEvent } from '@/lib/server/integrations/calendar/ics';
+import { buildIcsEvent, lunchIcsUid } from '@/lib/server/integrations/calendar/ics';
 import { calendarArtifactDownloadParams, createCalendarArtifactSchema } from '@/lib/server/schemas/calendar';
 import { getCalendarArtifact } from '@/lib/server/services/calendar';
 
@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: Params) {
     const payload = createCalendarArtifactSchema.parse(artifact.payload);
     const ics = buildIcsEvent({
       ...payload,
-      uid: artifact.id,
+      uid: lunchIcsUid(artifact.matchId),
     });
 
     return new Response(ics, {

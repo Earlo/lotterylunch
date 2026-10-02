@@ -189,6 +189,14 @@ void test('service regressions use an isolated PostgreSQL database', async (t) =
           endsAt: endAt,
           notes: 'Private notes',
         });
+        assert.deepEqual((await lottery.listLunchRuns(group.id, adminUser.id))[0]?.matches[0]?.calendarArtifacts, [
+          { id: artifact.id, type: 'ics', payload: {} },
+        ]);
+        assert.deepEqual(
+          (await lottery.listLunchRuns(group.id, owner.id))[0]?.matches[0]?.calendarArtifacts,
+          [],
+          'calendar action summaries belong to the requesting account',
+        );
         assert.equal((await calendar.getCalendarArtifact(artifact.id, owner.id)).id, artifact.id);
         await assert.rejects(
           calendar.createCalendarArtifact(match.id, outsider.id, {
@@ -206,6 +214,100 @@ void test('service regressions use an isolated PostgreSQL database', async (t) =
         assert.equal(second.matches.length, 0, 'an existing booking prevents duplicate scheduling');
       },
     );
+
+    await t.test(
+      'draws enforce each notice policy and find the notice boundary inside continuous availability',
+      async () => {
+        const noticeOwner = await db.user.create({ data: { email: 'notice-owner@example.test' } });
+        const noticePartner = await db.user.create({ data: { email: 'notice-partner@example.test' } });
+        const noticeGroup = await groups.createGroup(noticeOwner.id, { name: 'Notice policy regression' });
+        await memberships.joinGroup(noticeGroup.id, noticePartner.id);
+        await Promise.all([
+          lottery.setParticipation(noticeGroup.id, noticeOwner.id, true),
+          lottery.setParticipation(noticeGroup.id, noticePartner.id, true),
+        ]);
+        const nearStart = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+        const nearEnd = new Date(Date.parse(nearStart) + 30 * 60 * 1000).toISOString();
+        const wideEnd = new Date(Date.parse(nearStart) + 26 * 60 * 60 * 1000).toISOString();
+        const sharedAvailability = [{ startAt: nearStart, endAt: wideEnd, type: 'lunch' as const }];
+        await Promise.all([
+          availability.upsertAvailability(noticeOwner.id, sharedAvailability),
+          availability.upsertAvailability(noticePartner.id, sharedAvailability),
+        ]);
+        const nearWindow = { windowStart: nearStart, windowEnd: nearEnd, durationMinutes: 30 };
+        const wideWindow = { ...nearWindow, windowEnd: wideEnd };
+        const setNotice = (preference: 'strict' | 'standard' | 'flexible' | null) =>
+          db.user.updateMany({
+            where: { id: { in: [noticeOwner.id, noticePartner.id] } },
+            data: { shortNoticePreference: preference },
+          });
+        try {
+          await setNotice('strict');
+          assert.equal((await lottery.executeLottery(noticeGroup.id, noticeOwner.id, nearWindow)).matches.length, 0);
+          await setNotice('standard');
+          assert.equal((await lottery.executeLottery(noticeGroup.id, noticeOwner.id, nearWindow)).matches.length, 0);
+          await setNotice(null);
+          assert.equal(
+            (await lottery.executeLottery(noticeGroup.id, noticeOwner.id, nearWindow)).matches.length,
+            0,
+            'unset preferences use the same-day minimum',
+          );
+          await setNotice('flexible');
+          const immediate = await lottery.executeLottery(noticeGroup.id, noticeOwner.id, nearWindow);
+          assert.equal(immediate.matches.length, 1);
+          assert.equal(immediate.matches[0]?.scheduledFor?.toISOString(), nearStart);
+          await setNotice('strict');
+          const advance = await lottery.executeLottery(noticeGroup.id, noticeOwner.id, wideWindow);
+          assert.equal(advance.matches.length, 1);
+          assert.equal(advance.matches[0]?.scheduledFor?.getTime(), advance.createdAt.getTime() + 24 * 60 * 60 * 1000);
+          // Different preferences in one draw must honor the stricter participant.
+          await setNotice('flexible');
+          await db.user.update({ where: { id: noticePartner.id }, data: { shortNoticePreference: 'standard' } });
+          const sameDay = await lottery.executeLottery(noticeGroup.id, noticeOwner.id, wideWindow);
+          assert.equal(sameDay.matches.length, 1);
+          assert.equal(sameDay.matches[0]?.scheduledFor?.getTime(), sameDay.createdAt.getTime() + 60 * 60 * 1000);
+        } finally {
+          await groups.deleteGroupForUser(noticeGroup.id, noticeOwner.id);
+        }
+      },
+    );
+
+    await t.test('unrelated calendar bookings cannot consume a draw scheduling budget', async () => {
+      const unrelated = await groups.createGroup(outsider.id, { name: 'Unrelated calendar bookings' });
+      const drawStart = new Date(Date.parse(startAt) + 4 * 60 * 60 * 1000);
+      const drawEnd = new Date(drawStart.getTime() + 60 * 60 * 1000);
+      try {
+        await db.$executeRaw`
+          INSERT INTO "Match" (
+            "id", "groupId", "memberIds", "state", "status", "scheduledFor", "scheduledUntil", "updatedAt"
+          )
+          SELECT gen_random_uuid(), ${unrelated.id}::uuid, ${JSON.stringify([outsider.id])}::jsonb,
+            'scheduled'::"MatchState", 'confirmed'::"MatchStatus", ${drawStart}, ${drawEnd}, CURRENT_TIMESTAMP
+          FROM generate_series(1, 10001)
+        `;
+        const drawSlot = { startAt: drawStart.toISOString(), endAt: drawEnd.toISOString(), type: 'lunch' as const };
+        await Promise.all([
+          availability.upsertAvailability(owner.id, [drawSlot]),
+          availability.upsertAvailability(adminUser.id, [drawSlot]),
+        ]);
+        const run = await lottery.executeLottery(group.id, owner.id, {
+          windowStart: drawSlot.startAt,
+          windowEnd: drawSlot.endAt,
+          durationMinutes: 60,
+        });
+        assert.equal(run.matches.length, 1);
+        assert.deepEqual(
+          new Set(z.array(z.string()).parse(run.matches[0]?.memberIds)),
+          new Set([owner.id, adminUser.id]),
+        );
+      } finally {
+        await groups.deleteGroupForUser(unrelated.id, outsider.id);
+        await Promise.all([
+          availability.upsertAvailability(owner.id, [slot]),
+          availability.upsertAvailability(adminUser.id, [slot]),
+        ]);
+      }
+    });
 
     await t.test(
       'concurrent Google OAuth callbacks keep one connection and consume each browser-bound state',

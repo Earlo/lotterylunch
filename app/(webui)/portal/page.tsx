@@ -13,8 +13,8 @@ export default async function PortalPage() {
     <AppShell title="Welcome back" description="Your portal overview and membership status live here.">
       <div className="grid gap-6">
         <EmptyState
-          title="Nothing scheduled yet"
-          description="Create or join a group to meet teammates and share calendars."
+          title="Your lunch groups"
+          description="Open a group to see saved lunch draws, manage participation, or organize your next lunch."
           action={
             <Button variant="accent" as={Link} href="/portal/groups">
               Go to groups

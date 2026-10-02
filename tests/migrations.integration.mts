@@ -756,8 +756,253 @@ void test('migration history builds the current schema and preserves legacy reco
         await client.end();
       }
     });
+    await t.test(
+      'deployment preserves retained lottery tables and deletion cleans their group records atomically',
+      async () => {
+        const client = await connect(freshUrl);
+        const db = runtimePrisma(freshUrl);
+        const globalDb = globalThis as typeof globalThis & { prisma?: typeof db };
+        const previousDb = globalDb.prisma;
+        globalDb.prisma = db;
+        try {
+          const groups = await import('../lib/server/services/groups');
+          const owner = await db.user.create({ data: { email: 'legacy-deletion@example.test' } });
+          const freshGroup = await groups.createGroup(owner.id, { name: 'No retained tables' });
+          await groups.deleteGroupForUser(freshGroup.id, owner.id);
+          assert.equal(await db.group.findUnique({ where: { id: freshGroup.id } }), null);
+
+          // These optional tables and Match.runId were retained by the earlier db-push
+          // startup. Reproduce their restricted relationships without changing the
+          // managed schema or relying on application rows in a development database.
+          await client.query(`
+          CREATE TABLE "Lottery" (
+            "id" TEXT PRIMARY KEY,
+            "groupId" UUID NOT NULL REFERENCES "Group"("id") ON DELETE RESTRICT,
+            "name" TEXT NOT NULL
+          );
+          CREATE TABLE "LotteryRun" (
+            "id" TEXT PRIMARY KEY,
+            "lotteryId" TEXT NOT NULL REFERENCES "Lottery"("id") ON DELETE RESTRICT
+          );
+          CREATE TABLE "Participation" (
+            "id" TEXT PRIMARY KEY,
+            "runId" TEXT NOT NULL REFERENCES "LotteryRun"("id") ON DELETE RESTRICT,
+            "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE RESTRICT
+          );
+          ALTER TABLE "Match" ADD COLUMN "runId" TEXT;
+          ALTER TABLE "Match" ADD CONSTRAINT "Match_runId_fkey"
+            FOREIGN KEY ("runId") REFERENCES "LotteryRun"("id") ON DELETE RESTRICT;
+        `);
+          const removed = await groups.createGroup(owner.id, { name: 'Delete old lunches' });
+          const kept = await groups.createGroup(owner.id, { name: 'Keep old lunches' });
+          await client.query('INSERT INTO "Lottery" VALUES ($1, $2, $3), ($4, $5, $6)', [
+            'delete-lottery',
+            removed.id,
+            'Delete lottery',
+            'keep-lottery',
+            kept.id,
+            'Keep lottery',
+          ]);
+          await client.query('INSERT INTO "LotteryRun" VALUES ($1, $2), ($3, $4)', [
+            'delete-run',
+            'delete-lottery',
+            'keep-run',
+            'keep-lottery',
+          ]);
+          await client.query('INSERT INTO "Participation" VALUES ($1, $2, $3), ($4, $5, $6)', [
+            'delete-participation',
+            'delete-run',
+            owner.id,
+            'keep-participation',
+            'keep-run',
+            owner.id,
+          ]);
+          const matches = await Promise.all(
+            [removed, kept].map((group) =>
+              db.match.create({
+                data: {
+                  groupId: group.id,
+                  memberIds: [owner.id],
+                  event: { create: { venue: 'Legacy cafe' } },
+                  calendarArtifacts: { create: { type: 'ics', payload: { title: 'Legacy lunch' } } },
+                },
+                include: { event: true, calendarArtifacts: true },
+              }),
+            ),
+          );
+          const removedMatch = matches[0];
+          const keptMatch = matches[1];
+          assert.ok(removedMatch && keptMatch);
+          await client.query('UPDATE "Match" SET "runId" = $1 WHERE "id" = $2', ['delete-run', removedMatch.id]);
+          await client.query('UPDATE "Match" SET "runId" = $1 WHERE "id" = $2', ['keep-run', keptMatch.id]);
+          const personalSlot = await db.availabilitySlot.create({
+            data: {
+              userId: owner.id,
+              type: 'lunch',
+              startAt: new Date('2030-10-07T12:00:00Z'),
+              endAt: new Date('2030-10-07T13:00:00Z'),
+            },
+          });
+          const groupedSlot = await db.availabilitySlot.create({
+            data: {
+              userId: owner.id,
+              groupId: removed.id,
+              type: 'lunch',
+              startAt: personalSlot.startAt,
+              endAt: personalSlot.endAt,
+            },
+          });
+          const beforeDeployment = await schemaSnapshot(client);
+          await prisma(freshUrl, ['migrate', 'deploy'], currentConfig);
+          assert.deepEqual(await schemaSnapshot(client), beforeDeployment);
+          const legacySnapshot = async () =>
+            (
+              await client.query<{ record: string }>(`
+          SELECT to_jsonb(l)::text AS record FROM "Lottery" l
+          UNION ALL SELECT to_jsonb(r)::text FROM "LotteryRun" r
+          UNION ALL SELECT to_jsonb(p)::text FROM "Participation" p
+          ORDER BY record
+        `)
+            ).rows;
+          const originalLegacyRows = await legacySnapshot();
+          assert.equal(originalLegacyRows.length, 6);
+
+          await client.query(`
+          CREATE FUNCTION reject_test_group_deletion() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN RAISE EXCEPTION 'test final group deletion failure'; END $$;
+          CREATE TRIGGER reject_test_group_deletion BEFORE DELETE ON "Group"
+            FOR EACH ROW EXECUTE FUNCTION reject_test_group_deletion();
+        `);
+          try {
+            await assert.rejects(groups.deleteGroupForUser(removed.id, owner.id));
+            assert.deepEqual(await legacySnapshot(), originalLegacyRows);
+            assert.deepEqual(
+              await db.match.findUniqueOrThrow({
+                where: { id: removedMatch.id },
+                include: { event: true, calendarArtifacts: true },
+              }),
+              removedMatch,
+            );
+            assert.ok(await db.group.findUnique({ where: { id: removed.id } }));
+            assert.equal(await db.membership.count({ where: { groupId: removed.id } }), 1);
+            assert.ok(await db.availabilitySlot.findUnique({ where: { id: groupedSlot.id } }));
+          } finally {
+            await client.query(`
+            DROP TRIGGER reject_test_group_deletion ON "Group";
+            DROP FUNCTION reject_test_group_deletion();
+          `);
+          }
+
+          await groups.deleteGroupForUser(removed.id.toUpperCase(), owner.id);
+          assert.equal(await db.group.findUnique({ where: { id: removed.id } }), null);
+          assert.equal(await db.match.findUnique({ where: { id: removedMatch.id } }), null);
+          assert.equal(await db.calendarArtifact.count({ where: { matchId: removedMatch.id } }), 0);
+          assert.equal(await db.lunchEvent.count({ where: { matchId: removedMatch.id } }), 0);
+          assert.equal(await db.availabilitySlot.findUnique({ where: { id: groupedSlot.id } }), null);
+          assert.equal((await legacySnapshot()).length, 3);
+          assert.equal((await client.query<{ id: string }>('SELECT "id" FROM "Lottery"')).rows[0]?.id, 'keep-lottery');
+          assert.ok(await db.group.findUnique({ where: { id: kept.id } }));
+          assert.deepEqual(
+            await db.match.findUniqueOrThrow({
+              where: { id: keptMatch.id },
+              include: { event: true, calendarArtifacts: true },
+            }),
+            keptMatch,
+          );
+          assert.deepEqual(
+            await db.availabilitySlot.findUniqueOrThrow({ where: { id: personalSlot.id } }),
+            personalSlot,
+          );
+          assert.equal(
+            (
+              await client.query<{ count: number }>(`
+          SELECT count(*)::int AS count FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name IN ('Lottery', 'LotteryRun', 'Participation')
+        `)
+            ).rows[0]?.count,
+            3,
+          );
+        } finally {
+          if (previousDb) globalDb.prisma = previousDb;
+          else delete globalDb.prisma;
+          await db.$disconnect();
+          await client.end();
+        }
+      },
+    );
   } finally {
     await admin?.end();
+    await server?.stop();
+    await rm(workdir, { recursive: true, force: true });
+  }
+});
+
+void test('calendar artifact upgrade preserves legacy duplicates and claims one reusable Google action per user', async () => {
+  const workdir = await mkdtemp(path.join(tmpdir(), 'lotterylunch-calendar-migration-'));
+  let server: Awaited<ReturnType<typeof disposablePostgres>> | undefined;
+  let client: pg.Client | undefined;
+  try {
+    server = await disposablePostgres(workdir);
+    client = await connect(server.url);
+    await client.query(`
+      CREATE TABLE "CalendarConnection" ("id" UUID PRIMARY KEY, "userId" TEXT NOT NULL);
+      CREATE TABLE "CalendarArtifact" (
+        "id" UUID PRIMARY KEY, "matchId" UUID NOT NULL, "type" TEXT NOT NULL,
+        "payload" JSONB NOT NULL, "createdAt" TIMESTAMP NOT NULL DEFAULT now()
+      );
+      INSERT INTO "CalendarConnection" VALUES
+        ('10000000-0000-0000-0000-000000000001', 'first-user'),
+        ('10000000-0000-0000-0000-000000000002', 'second-user');
+      INSERT INTO "CalendarArtifact" ("id", "matchId", "type", "payload", "createdAt") VALUES
+        ('20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001', 'google',
+          '{"connectionId":"10000000-0000-0000-0000-000000000001","eventId":"first-event"}', '2026-10-01 12:00:00'),
+        ('20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000001', 'google',
+          '{"connectionId":"10000000-0000-0000-0000-000000000001","eventId":"duplicate-event"}', '2026-10-01 13:00:00'),
+        ('20000000-0000-0000-0000-000000000003', '30000000-0000-0000-0000-000000000001', 'google',
+          '{"connectionId":"10000000-0000-0000-0000-000000000002","eventId":"other-user-event"}', '2026-10-01 12:00:00'),
+        ('20000000-0000-0000-0000-000000000004', '30000000-0000-0000-0000-000000000001', 'ics',
+          '{"title":"legacy calendar file"}', '2026-10-01 12:00:00'),
+        ('20000000-0000-0000-0000-000000000005', '30000000-0000-0000-0000-000000000001', 'google',
+          '{"connectionId":"removed-connection","eventId":"unowned-event"}', '2026-10-01 12:00:00');
+    `);
+    const original = (
+      await client.query('SELECT "id", "matchId", "type", "payload", "createdAt" FROM "CalendarArtifact" ORDER BY "id"')
+    ).rows;
+    await client.query(
+      await readFile(path.join(migrationRoot, '20261002020000_reuse_calendar_artifacts/migration.sql'), 'utf8'),
+    );
+    assert.deepEqual(
+      (
+        await client.query(
+          'SELECT "id", "matchId", "type", "payload", "createdAt" FROM "CalendarArtifact" ORDER BY "id"',
+        )
+      ).rows,
+      original,
+      'the upgrade retains every prior artifact and its event identity',
+    );
+    assert.deepEqual(
+      (await client.query<{ userId: string | null }>('SELECT "userId" FROM "CalendarArtifact" ORDER BY "id"')).rows.map(
+        (row) => row.userId,
+      ),
+      ['first-user', null, 'second-user', null, null],
+    );
+    await assert.rejects(
+      client.query(`
+      INSERT INTO "CalendarArtifact" ("id", "matchId", "userId", "type", "payload")
+      VALUES ('20000000-0000-0000-0000-000000000006', '30000000-0000-0000-0000-000000000001', 'first-user', 'google', '{}')
+    `),
+      { code: '23505' },
+    );
+    await client.query(`
+      INSERT INTO "CalendarArtifact" ("id", "matchId", "userId", "type", "payload")
+      VALUES ('20000000-0000-0000-0000-000000000007', '30000000-0000-0000-0000-000000000001', 'first-user', 'ics', '{}')
+    `);
+    assert.equal(
+      (await client.query<{ count: number }>('SELECT count(*)::int AS count FROM "CalendarArtifact"')).rows[0]?.count,
+      6,
+    );
+  } finally {
+    await client?.end();
     await server?.stop();
     await rm(workdir, { recursive: true, force: true });
   }

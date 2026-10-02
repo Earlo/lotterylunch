@@ -1,11 +1,18 @@
 import { apiFetch } from '@/lib/webui/api/client';
 import { z } from 'zod';
 
+export const lunchCalendarArtifactSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  payload: z.object({ eventLink: z.string().url().optional() }),
+});
+
 const lunchMatchSchema = z.object({
   id: z.string(),
   memberIds: z.array(z.string()),
   scheduledFor: z.string(),
   scheduledUntil: z.string(),
+  calendarArtifacts: z.array(lunchCalendarArtifactSchema).default([]),
 });
 
 const lunchRunSchema = z.object({

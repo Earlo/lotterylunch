@@ -31,7 +31,9 @@ const evaluationSchema = z.object({
   exceptionDetails: z.unknown().optional(),
 });
 const browserTargetSchema = z.object({ webSocketDebuggerUrl: z.string().url() });
-const runsSchema = z.array(z.object({ matches: z.array(z.object({ memberIds: z.array(z.string()) })) }));
+const runsSchema = z.array(
+  z.object({ matches: z.array(z.object({ id: z.string(), memberIds: z.array(z.string()) })) }),
+);
 
 type LoggedChild = { process: ChildProcess; output: string; error: Error | undefined };
 type PendingCommand = {
@@ -472,7 +474,16 @@ await test(
       );
       const calendar = await request(0, artifactPath);
       assert.equal(calendar.status, 200);
-      assert.match(await calendar.text(), /BEGIN:VCALENDAR/);
+      const calendarText = await calendar.text();
+      assert.match(calendarText, /BEGIN:VCALENDAR/);
+      assert.ok(calendarText.includes(`UID:${match.id}@lotterylunch`), 'ICS imports share the stable lunch identity');
+      await navigate(0, `/portal/groups/${group.id}`, 'Download calendar file');
+      assert.equal(
+        await evaluate(`document.querySelector('a[href^="/api/v1/calendar-artifacts/"]')?.getAttribute('href')`),
+        artifactPath,
+        'the saved calendar action remains available after reloading results',
+      );
+      assert.equal(await database.calendarArtifact.count({ where: { matchId: match.id } }), 1);
       assert.equal((await request(null, artifactPath)).status, 401);
       assert.equal((await request(2, artifactPath)).status, 404);
       context.diagnostic(

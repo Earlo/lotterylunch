@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { MembershipStatus, Prisma, Role } from '@/generated/prisma/client';
+import { LUNCH_NOTICE_MINUTES } from '@/lib/lunchNotice';
 import { prisma } from '@/lib/prisma';
 import { requireGroupMembership, requireGroupRole } from '@/lib/server/auth/authorization';
 import { lockGroupForUpdate } from '@/lib/server/db/group-lock';
-import { scheduleLunches } from '@/lib/server/domain/matching/availability';
+import { scheduleLunches, SchedulingCapacityError } from '@/lib/server/domain/matching/availability';
+import { MAX_AVAILABILITY_SLOTS, MAX_EXISTING_BOOKINGS } from '@/lib/server/domain/matching/limits';
 import { badRequest } from '@/lib/server/http/errors';
 import { executeLotterySchema, type ExecuteLotteryInput } from '@/lib/server/schemas/lottery';
 
@@ -33,12 +35,30 @@ export async function setParticipation(groupId: string, userId: string, particip
 
 export async function listLunchRuns(groupId: string, userId: string) {
   await requireGroupMembership(groupId, userId);
-  return prisma.lunchRun.findMany({
+  const runs = await prisma.lunchRun.findMany({
     where: { groupId },
-    include: { matches: { orderBy: { scheduledFor: 'asc' } } },
+    include: {
+      matches: {
+        orderBy: { scheduledFor: 'asc' },
+        include: { calendarArtifacts: { where: { userId }, select: { id: true, type: true, payload: true } } },
+      },
+    },
     orderBy: { createdAt: 'desc' },
     take: 20,
   });
+  for (const run of runs) {
+    for (const match of run.matches) {
+      match.calendarArtifacts = match.calendarArtifacts.map((artifact) => {
+        const payload = artifact.payload;
+        const eventLink =
+          payload && typeof payload === 'object' && !Array.isArray(payload) && typeof payload.eventLink === 'string'
+            ? payload.eventLink
+            : undefined;
+        return { id: artifact.id, type: artifact.type, payload: eventLink ? { eventLink } : {} };
+      });
+    }
+  }
+  return runs;
 }
 
 export async function executeLottery(groupId: string, userId: string, input: ExecuteLotteryInput) {
@@ -67,13 +87,20 @@ export async function executeLottery(groupId: string, userId: string, input: Exe
       // have committed while this draw waited, and must apply to its fresh slots.
       const participants = await tx.user.findMany({
         where: { id: { in: participantIds } },
-        select: { id: true, timezone: true },
+        select: { id: true, timezone: true, shortNoticePreference: true },
         orderBy: { id: 'asc' },
       });
 
       const slots = await tx.availabilitySlot.findMany({
         where: { userId: { in: participantIds }, OR: [{ groupId }, { groupId: null }] },
+        take: participantIds.length * MAX_AVAILABILITY_SLOTS + 1,
       });
+      const slotsByUser = new Map<string, typeof slots>();
+      for (const slot of slots) {
+        const userSlots = slotsByUser.get(slot.userId) ?? [];
+        userSlots.push(slot);
+        slotsByUser.set(slot.userId, userSlots);
+      }
       const previousMatches = await tx.match.findMany({
         where: { groupId, status: { not: 'canceled' } },
         orderBy: { createdAt: 'desc' },
@@ -89,34 +116,47 @@ export async function executeLottery(groupId: string, userId: string, input: Exe
             { scheduledUntil: { gt: windowStart } },
             { scheduledUntil: null, scheduledFor: { gt: new Date(windowStart.getTime() - 60 * 60 * 1000) } },
           ],
+          AND: [{ OR: participantIds.map((id) => ({ memberIds: { array_contains: [id] } })) }],
         },
         select: { memberIds: true, scheduledFor: true, scheduledUntil: true },
+        take: MAX_EXISTING_BOOKINGS + 1,
       });
       const lunchRunId = randomUUID();
-      const drawn = scheduleLunches({
-        participants: participants.map((participant) => ({
-          id: participant.id,
-          timezone: participant.timezone,
-          slots: slots.filter((slot) => slot.userId === participant.id),
-        })),
-        windowStart,
-        windowEnd,
-        durationMinutes: parsed.durationMinutes,
-        maxGroupSize: group.defaultGroupSize,
-        recentMatches: previousMatches.map((match) => memberIds(match.memberIds)),
-        existingBookings: existingMatches.flatMap((match) =>
-          match.scheduledFor
-            ? [
-                {
-                  memberIds: memberIds(match.memberIds),
-                  start: match.scheduledFor,
-                  end: match.scheduledUntil ?? new Date(match.scheduledFor.getTime() + 60 * 60 * 1000),
-                },
-              ]
-            : [],
-        ),
-        seed: lunchRunId,
-      });
+      // Notice starts when the locked, current profiles are used for this draw.
+      const drawnAt = new Date();
+      let drawn: ReturnType<typeof scheduleLunches>;
+      try {
+        drawn = scheduleLunches({
+          participants: participants.map((participant) => ({
+            id: participant.id,
+            timezone: participant.timezone,
+            notBefore: new Date(
+              drawnAt.getTime() + LUNCH_NOTICE_MINUTES[participant.shortNoticePreference ?? 'standard'] * 60 * 1000,
+            ),
+            slots: slotsByUser.get(participant.id) ?? [],
+          })),
+          windowStart,
+          windowEnd,
+          durationMinutes: parsed.durationMinutes,
+          maxGroupSize: group.defaultGroupSize,
+          recentMatches: previousMatches.map((match) => memberIds(match.memberIds)),
+          existingBookings: existingMatches.flatMap((match) =>
+            match.scheduledFor
+              ? [
+                  {
+                    memberIds: memberIds(match.memberIds),
+                    start: match.scheduledFor,
+                    end: match.scheduledUntil ?? new Date(match.scheduledFor.getTime() + 60 * 60 * 1000),
+                  },
+                ]
+              : [],
+          ),
+          seed: lunchRunId,
+        });
+      } catch (error) {
+        if (error instanceof SchedulingCapacityError) throw badRequest(error.message);
+        throw error;
+      }
       // Lock waits and scheduling can outlast a short future window. Recheck at
       // the persistence boundary so queued draws cannot create lunches in the past.
       if (windowStart.getTime() < Date.now()) throw badRequest('Lottery window must start in the future');
@@ -131,6 +171,7 @@ export async function executeLottery(groupId: string, userId: string, input: Exe
           participantIds,
           unmatchedUserIds: drawn.unmatchedUserIds,
           algorithmVersion: drawn.algorithmVersion,
+          createdAt: drawnAt,
           matches: {
             create: drawn.matches.map((match) => ({
               memberIds: match.memberIds,

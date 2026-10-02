@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { env } from '@/lib/env';
 import { badRequest } from '@/lib/server/http/errors';
 import type { CreateCalendarArtifactInput } from '@/lib/server/schemas/calendar';
@@ -47,6 +48,13 @@ export type GoogleCalendarEvent = {
   htmlLink?: string;
   status?: string;
 };
+
+export function googleCalendarEventId(matchId: string, userId: string) {
+  // Google accepts lowercase base32hex characters, which include this hex hash.
+  return `ll${createHash('sha256')
+    .update(JSON.stringify([matchId.toLowerCase(), userId]))
+    .digest('hex')}`;
+}
 
 export function buildGoogleAuthUrl(state: string, redirectUri: string) {
   const url = new URL(GOOGLE_AUTH_URL);
@@ -128,7 +136,7 @@ export async function refreshGoogleAccessToken(refreshToken: string, deadline?: 
 
 export async function createGoogleCalendarEvent(
   accessToken: string,
-  input: Omit<CreateCalendarArtifactInput, 'provider'>,
+  input: Omit<CreateCalendarArtifactInput, 'provider'> & { eventId?: string },
   deadline?: number,
 ): Promise<GoogleCalendarEvent> {
   const descriptionParts = [];
@@ -136,6 +144,7 @@ export async function createGoogleCalendarEvent(
   if (input.notes) descriptionParts.push(input.notes);
 
   const eventBody = {
+    id: input.eventId,
     summary: input.title,
     location: input.location,
     description: descriptionParts.length ? descriptionParts.join('\n\n') : undefined,
@@ -149,7 +158,7 @@ export async function createGoogleCalendarEvent(
     },
   };
 
-  const response = await fetch(GOOGLE_EVENTS_URL, {
+  let response = await fetch(GOOGLE_EVENTS_URL, {
     method: 'POST',
     signal: googleRequestSignal(deadline),
     headers: {
@@ -158,6 +167,15 @@ export async function createGoogleCalendarEvent(
     },
     body: JSON.stringify(eventBody),
   });
+
+  // A prior attempt may have created the event before its database transaction
+  // failed. Recover it instead of generating another event on retry.
+  if (response.status === 409 && input.eventId) {
+    response = await fetch(`${GOOGLE_EVENTS_URL}/${encodeURIComponent(input.eventId)}`, {
+      signal: googleRequestSignal(deadline),
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  }
 
   const data = googleCalendarEventResponseSchema.parse(await response.json());
 

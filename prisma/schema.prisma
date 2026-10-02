@@ -352,6 +352,8 @@ model Authenticator {
 model CalendarArtifact {
   id        String   @id @default(uuid()) @db.Uuid
   matchId   String   @db.Uuid
+  // Legacy artifacts may not identify their creator. Keep them downloadable.
+  userId    String?
   type      String
   payload   Json
   createdAt DateTime @default(now())
@@ -359,4 +361,5 @@ model CalendarArtifact {
   match Match @relation(fields: [matchId], references: [id])
 
   @@index([matchId])
+  @@unique([matchId, userId, type])
 }

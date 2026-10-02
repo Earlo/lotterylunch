@@ -10,6 +10,7 @@ import {
   buildGoogleAuthUrl,
   createGoogleCalendarEvent,
   exchangeGoogleCode,
+  googleCalendarEventId,
   refreshGoogleAccessToken,
   type GoogleOAuthTokens,
 } from '@/lib/server/integrations/calendar/google';
@@ -226,7 +227,13 @@ async function createGoogleCalendarArtifact(
 
   const timezone = input.timezone ?? user?.timezone ?? 'UTC';
 
-  const event = await createGoogleCalendarEvent(accessToken, { ...input, timezone }, deadline);
+  // The ID survives a rolled-back artifact save or an uncertain HTTP response,
+  // so another attempt recovers the same external event.
+  const event = await createGoogleCalendarEvent(
+    accessToken,
+    { ...input, timezone, eventId: googleCalendarEventId(matchId, userId) },
+    deadline,
+  );
 
   if (!event.id) {
     throw badRequest('Google Calendar did not return an event id');
@@ -235,6 +242,7 @@ async function createGoogleCalendarArtifact(
   return tx.calendarArtifact.create({
     data: {
       matchId,
+      userId,
       type: 'google',
       payload: {
         ...input,
@@ -284,9 +292,13 @@ export async function createCalendarArtifact(matchId: string, userId: string, in
       await lockGroupForUpdate(tx, match.groupId);
       await requireCalendarMatchAccess(matchId, userId, tx);
       const { provider = 'ics', ...payload } = input;
+      const existing = await tx.calendarArtifact.findUnique({
+        where: { matchId_userId_type: { matchId, userId, type: provider } },
+      });
+      if (existing) return existing;
       if (provider === 'google') return createGoogleCalendarArtifact(matchId, userId, payload, tx, googleDeadline);
       if (provider !== 'ics') throw badRequest('Calendar provider not supported yet');
-      return tx.calendarArtifact.create({ data: { matchId, type: 'ics', payload } });
+      return tx.calendarArtifact.create({ data: { matchId, userId, type: 'ics', payload } });
     },
     { timeout: 20_000 },
   );

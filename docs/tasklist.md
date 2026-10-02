@@ -15,8 +15,12 @@ scheduler, and separate run pages did not describe shipped code. The
 - [x] Optional profile clearing and immediate schedule display preference updates.
 - [x] Explicit participation, organizer-triggered draws, persisted matches, portal results.
 - [x] Availability/history-aware matching with app booking conflict protection.
+- [x] Bounded recurrence expansion and matching with constrained-member prioritization.
+- [x] Enforced notice preferences: 24 hours, one hour, or any future time.
 - [x] Google Calendar OAuth with browser/account binding and one-time state.
 - [x] Authorized private ICS exports and manual Google Calendar actions.
+- [x] Reusable calendar actions, retry-safe Google event IDs, and stable ICS UIDs.
+- [x] Transactional group deletion with retained legacy lottery records.
 - [x] Same-origin browser authentication default.
 - [x] Database readiness and production container configuration.
 - [x] Unit/security tests and disposable PostgreSQL service/migration regressions.

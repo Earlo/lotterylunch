@@ -70,6 +70,13 @@ still proposes removing these extras; the recovery leaves them intact. Do not
 execute that generated diff as the repair. Any later schema cleanup or migration
 development against this database must account for these retained objects.
 
+The application now deletes a group's retained legacy lotteries, runs,
+participations, and linked matches with its managed descendants in one
+transaction. It detects absent legacy tables on fresh installations and preserves
+the tables and other groups' records. A disposable upgraded-schema regression
+checks cleanup and rollback. This behavior does not replace backup or schema
+reconciliation before deployment.
+
 The regression integration tests cover both migration-history states. They verify
 that normal deployment repairs an already-recorded reconciliation and restores
 runtime account queries, and that a failed reconciliation can be repaired and

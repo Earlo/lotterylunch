@@ -1,3 +1,4 @@
+import { MAX_AVAILABILITY_SLOTS, MAX_WEEKLY_SLOT_DURATION } from '@/lib/server/domain/matching/limits';
 import { z } from 'zod';
 
 export const availabilityQuerySchema = z.object({
@@ -21,9 +22,16 @@ export const availabilitySlotSchema = z
   .refine((slot) => Date.parse(slot.endAt) > Date.parse(slot.startAt), {
     message: 'End time must be after start time',
     path: ['endAt'],
-  });
+  })
+  .refine(
+    (slot) => !slot.recurringRule || Date.parse(slot.endAt) - Date.parse(slot.startAt) <= MAX_WEEKLY_SLOT_DURATION,
+    {
+      message: 'Recurring availability must last no more than seven days',
+      path: ['endAt'],
+    },
+  );
 
 // PUT replaces the caller's entire availability, including grouped slots.
-export const upsertAvailabilitySchema = z.array(availabilitySlotSchema).max(1000);
+export const upsertAvailabilitySchema = z.array(availabilitySlotSchema).max(MAX_AVAILABILITY_SLOTS);
 
 export type AvailabilitySlotInput = z.infer<typeof availabilitySlotSchema>;

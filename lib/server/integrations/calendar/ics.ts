@@ -1,5 +1,9 @@
 import type { CreateCalendarArtifactInput } from '@/lib/server/schemas/calendar';
 
+export function lunchIcsUid(matchId: string) {
+  return `${matchId}@lotterylunch`;
+}
+
 function escapeText(value: string) {
   return value
     .replace(/\\/g, '\\\\')

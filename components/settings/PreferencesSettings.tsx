@@ -15,17 +15,17 @@ const shortNoticeOptions = [
   {
     value: 'strict',
     label: 'Advance notice only',
-    description: 'I need plenty of notice before adjusting my calendar.',
+    description: 'Schedule lunches at least 24 hours after the draw runs.',
   },
   {
     value: 'standard',
     label: 'Same-day OK',
-    description: 'I can adjust for same-day changes when needed.',
+    description: 'Schedule lunches at least one hour after the draw runs.',
   },
   {
     value: 'flexible',
     label: 'Last-minute OK',
-    description: 'I am comfortable with short-notice changes.',
+    description: 'Any future lunch time is OK, with no minimum notice.',
   },
 ] as const;
 

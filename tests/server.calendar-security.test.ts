@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { prisma } from '@/lib/prisma';
 import { HttpError } from '@/lib/server/http/errors';
-import { createGoogleCalendarEvent } from '@/lib/server/integrations/calendar/google';
+import { createGoogleCalendarEvent, googleCalendarEventId } from '@/lib/server/integrations/calendar/google';
 import { createCalendarArtifactSchema, createCalendarConnectionSchema } from '@/lib/server/schemas/calendar';
 import {
   completeGoogleCalendarConnection,
@@ -11,6 +11,7 @@ import {
   getCalendarArtifact,
   startGoogleCalendarConnection,
 } from '@/lib/server/services/calendar';
+import { z } from 'zod';
 
 const userId = 'calendar-user';
 const browserNonce = 'a'.repeat(64);
@@ -190,7 +191,9 @@ void test('calendar artifacts require an active participant or group administrat
     Promise.resolve(membership ? { id: 'membership', userId, groupId, group: { ownerId }, ...membership } : null),
   );
   const artifact = { id: artifactId, matchId, type: 'ics', payload: artifactInput };
-  mockPrismaMethod(t, prisma.calendarArtifact, 'findUnique', () => Promise.resolve(artifact));
+  mockPrismaMethod(t, prisma.calendarArtifact, 'findUnique', ({ where }: { where: { id?: string } }) =>
+    Promise.resolve(where.id ? artifact : null),
+  );
   const writes = mockPrismaMethod(t, prisma.calendarArtifact, 'create', () => Promise.resolve(artifact));
   mockPrismaMethod(t, prisma.webhookEndpoint, 'findMany', () => Promise.resolve([]));
 
@@ -264,6 +267,7 @@ void test('calendar artifact access is rechecked after concurrent suspension bef
 
 void test('authorized Google artifacts refresh credentials and persist the returned event', async (t) => {
   mockCalendarTransaction(t);
+  mockPrismaMethod(t, prisma.calendarArtifact, 'findUnique', () => Promise.resolve(null));
   mockPrismaMethod(t, prisma.match, 'findUnique', () =>
     Promise.resolve({ groupId, memberIds: [userId], state: 'scheduled', status: 'confirmed' }),
   );
@@ -356,6 +360,128 @@ void test('Google event requests honor their remaining deadline and reject expir
     (error: unknown) => error instanceof Error && error.name === 'TimeoutError',
   );
   assert.equal(fetchMock.mock.callCount(), 1);
+});
+
+type SavedArtifact = {
+  id: string;
+  matchId: string;
+  userId: string;
+  type: string;
+  payload: object;
+};
+
+function mockArtifactReuse(context: TestContext, failFirstSave = false) {
+  mockCalendarTransaction(context);
+  mockPrismaMethod(context, prisma.match, 'findUnique', () =>
+    Promise.resolve({ groupId, memberIds: [userId, 'second-user'], state: 'scheduled', status: 'confirmed' }),
+  );
+  mockPrismaMethod(
+    context,
+    prisma.membership,
+    'findUnique',
+    ({ where }: { where: { userId_groupId: { userId: string } } }) =>
+      Promise.resolve({
+        id: 'membership',
+        userId: where.userId_groupId.userId,
+        groupId,
+        role: 'member',
+        status: 'active',
+        group: { ownerId: 'owner' },
+      }),
+  );
+  mockPrismaMethod(context, prisma.calendarConnection, 'findFirst', () =>
+    Promise.resolve({ id: 'google-connection', oauthTokens: { accessToken: 'valid-access' } }),
+  );
+  mockPrismaMethod(context, prisma.user, 'findUnique', () => Promise.resolve({ timezone: 'Europe/Helsinki' }));
+  const artifacts: SavedArtifact[] = [];
+  mockPrismaMethod(
+    context,
+    prisma.calendarArtifact,
+    'findUnique',
+    ({ where }: { where: { matchId_userId_type: { matchId: string; userId: string; type: string } } }) =>
+      Promise.resolve(
+        artifacts.find(
+          (artifact) =>
+            artifact.matchId === where.matchId_userId_type.matchId &&
+            artifact.userId === where.matchId_userId_type.userId &&
+            artifact.type === where.matchId_userId_type.type,
+        ) ?? null,
+      ),
+  );
+  const saves = mockPrismaMethod(
+    context,
+    prisma.calendarArtifact,
+    'create',
+    ({ data }: { data: Omit<SavedArtifact, 'id'> }) => {
+      if (failFirstSave) {
+        failFirstSave = false;
+        return Promise.reject(new Error('Artifact save failed'));
+      }
+      const artifact = { id: `artifact-${artifacts.length}`, ...data };
+      artifacts.push(artifact);
+      return Promise.resolve(artifact);
+    },
+  );
+  return { artifacts, saves };
+}
+
+void test('repeated calendar files reuse the saved lunch action while different users have separate actions', async (t) => {
+  const fixture = mockArtifactReuse(t);
+  const fetchMock = t.mock.method(globalThis, 'fetch', () => {
+    throw new Error('Calendar files do not contact Google');
+  });
+
+  const first = await createCalendarArtifact(matchId, userId, { ...artifactInput, provider: 'ics' });
+  const retry = await createCalendarArtifact(matchId, userId, { ...artifactInput, title: 'Repeated click' });
+  assert.deepEqual(retry, first);
+  const second = await createCalendarArtifact(matchId, 'second-user', { ...artifactInput, provider: 'ics' });
+  assert.notEqual(second.id, first.id);
+  assert.equal(fixture.artifacts.length, 2);
+  assert.equal(fixture.saves.mock.callCount(), 2);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+void test('Google retry after an artifact save failure recovers the existing external event and reuses its saved action', async (t) => {
+  const fixture = mockArtifactReuse(t, true);
+  const externalEvents = new Map<string, { id: string; htmlLink: string }>();
+  const sentIds: string[] = [];
+  const fetchMock = t.mock.method(globalThis, 'fetch', (url: string | URL | Request, init?: RequestInit) => {
+    const address = url instanceof Request ? url.url : url.toString();
+    assert.ok(init?.signal instanceof AbortSignal);
+    if (init.method === 'POST') {
+      assert.ok(typeof init.body === 'string');
+      const body = z.object({ id: z.string() }).parse(JSON.parse(init.body));
+      sentIds.push(body.id);
+      if (externalEvents.has(body.id)) {
+        return Promise.resolve(Response.json({ error: { message: 'Identifier already exists' } }, { status: 409 }));
+      }
+      const event = { id: body.id, htmlLink: 'https://calendar.google.com/event' };
+      externalEvents.set(body.id, event);
+      return Promise.resolve(Response.json(event));
+    }
+    const id = address.slice(address.lastIndexOf('/') + 1);
+    assert.ok(externalEvents.has(id));
+    return Promise.resolve(Response.json(externalEvents.get(id)));
+  });
+
+  await assert.rejects(
+    createCalendarArtifact(matchId.toUpperCase(), userId, { ...artifactInput, provider: 'google' }),
+    { message: 'Artifact save failed' },
+  );
+  assert.equal(fixture.artifacts.length, 0);
+  assert.equal(externalEvents.size, 1);
+
+  const recovered = await createCalendarArtifact(matchId, userId, { ...artifactInput, provider: 'google' });
+  assert.partialDeepStrictEqual(recovered.payload, {
+    eventId: googleCalendarEventId(matchId, userId),
+    eventLink: 'https://calendar.google.com/event',
+  });
+  assert.deepEqual(sentIds, [googleCalendarEventId(matchId, userId), googleCalendarEventId(matchId, userId)]);
+  assert.match(sentIds[0] ?? '', /^[a-v0-9]{5,1024}$/);
+  assert.equal(externalEvents.size, 1);
+  assert.equal(fixture.artifacts.length, 1);
+  assert.deepEqual(await createCalendarArtifact(matchId, userId, { ...artifactInput, provider: 'google' }), recovered);
+  assert.equal(fetchMock.mock.callCount(), 3, 'the third action uses the artifact without contacting Google');
 });
 
 void test('unsupported calendar providers cannot create connection records or artifacts', (t) => {

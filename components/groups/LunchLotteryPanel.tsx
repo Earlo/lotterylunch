@@ -10,6 +10,7 @@ import { createCancelableEffect } from '@/lib/webui/cancelableEffect';
 import {
   executeLunchLottery,
   fetchLunchRuns,
+  lunchCalendarArtifactSchema,
   setLunchParticipation,
   type LunchMatch,
   type LunchRun,
@@ -18,13 +19,10 @@ import { createCalendarArtifact } from '@/lib/webui/mutations/calendar';
 import { fetchCalendarConnections } from '@/lib/webui/queries/calendar';
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { z } from 'zod';
 
 function localInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
-
-const artifactSchema = z.object({ id: z.string(), payload: z.object({ eventLink: z.string().url().optional() }) });
 
 export function LunchLotteryPanel({
   group,
@@ -49,7 +47,6 @@ export function LunchLotteryPanel({
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [browserTimezone, setBrowserTimezone] = useState('your local timezone');
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [calendarLinks, setCalendarLinks] = useState<Record<string, { url: string; label: string }>>({});
   const participantCount = memberships.filter((member) => member.status === 'active' && member.participating).length;
   const memberName = (id: string) => {
     const membership = memberships.find((member) => member.userId === id);
@@ -138,7 +135,7 @@ export function LunchLotteryPanel({
     setBusy(true);
     setMessage(null);
     try {
-      const artifact = artifactSchema.parse(
+      const artifact = lunchCalendarArtifactSchema.parse(
         await createCalendarArtifact(match.id, {
           provider,
           title: `${group.name}: lunch`,
@@ -149,18 +146,22 @@ export function LunchLotteryPanel({
           notes: `Lunch with ${match.memberIds.map(memberName).join(', ')}`.slice(0, 500),
         }),
       );
-      const url =
-        provider === 'ics'
-          ? `/api/v1/calendar-artifacts/${encodeURIComponent(artifact.id)}.ics`
-          : artifact.payload.eventLink;
-      if (url)
-        setCalendarLinks((current) => ({
-          ...current,
-          [`${match.id}:${provider}`]: {
-            url,
-            label: provider === 'ics' ? 'Download calendar file' : 'Open Google event',
-          },
-        }));
+      setRuns((current) =>
+        current.map((run) => ({
+          ...run,
+          matches: run.matches.map((lunch) =>
+            lunch.id === match.id
+              ? {
+                  ...lunch,
+                  calendarArtifacts: [
+                    ...lunch.calendarArtifacts.filter((existing) => existing.type !== provider),
+                    artifact,
+                  ],
+                }
+              : lunch,
+          ),
+        })),
+      );
       setError(null);
       setMessage(provider === 'ics' ? 'Your calendar file is ready below.' : 'Lunch added to your Google calendar.');
     } catch (err) {
@@ -211,11 +212,14 @@ export function LunchLotteryPanel({
           >
             <p className="text-sm">
               Draw lunches in a future window of up to 31 days. Each member gets at most one lunch per draw; existing
-              calendar bookings from this app are respected. Lunches contain 2–{group.defaultGroupSize} members. Recent
-              pairings are avoided when possible.
+              calendar bookings from this app and notice preferences are respected. Lunches contain 2–
+              {group.defaultGroupSize} members. Recent pairings are avoided when possible.
             </p>
             <p className="text-xs text-[rgba(20,18,21,0.7)]">
               Enter dates in {browserTimezone}. Results are shown in {group.timezone}.
+            </p>
+            <p className="text-xs">
+              Saved draws cannot be canceled or rescheduled in the app. Check the dates before running a draw.
             </p>
             <div className="grid gap-3 sm:grid-cols-3">
               <label htmlFor="lottery-window-start" className="grid gap-1 text-sm">
@@ -273,7 +277,7 @@ export function LunchLotteryPanel({
               <p className="text-xs">
                 Draw for {formatTime(run.windowStart)} – {formatTime(run.windowEnd)} ({group.timezone})
               </p>
-              {run.matches.length === 0 ? <p className="text-sm">No shared lunch availability was found.</p> : null}
+              {run.matches.length === 0 ? <p className="text-sm">No lunches were assigned in this draw.</p> : null}
               {run.matches.map((match) => (
                 <div key={match.id} className="grid gap-2 text-sm">
                   <p className="font-semibold">{match.memberIds.map(memberName).join(' · ')}</p>
@@ -282,17 +286,26 @@ export function LunchLotteryPanel({
                   </p>
                   {match.memberIds.includes(myMembership.userId) || isAdmin ? (
                     <div className="flex flex-wrap items-center gap-2">
-                      {(googleConnected ? (['ics', 'google'] as const) : (['ics'] as const)).map((provider) => {
-                        const link = calendarLinks[`${match.id}:${provider}`];
-                        return link ? (
+                      {(googleConnected || match.calendarArtifacts.some((artifact) => artifact.type === 'google')
+                        ? (['ics', 'google'] as const)
+                        : (['ics'] as const)
+                      ).map((provider) => {
+                        const artifact = match.calendarArtifacts.find((item) => item.type === provider);
+                        const url =
+                          artifact && provider === 'ics'
+                            ? `/api/v1/calendar-artifacts/${encodeURIComponent(artifact.id)}.ics`
+                            : artifact?.payload.eventLink;
+                        return url ? (
                           <a
                             key={provider}
-                            href={link.url}
+                            href={url}
                             className="underline"
                             {...(provider === 'google' ? { target: '_blank', rel: 'noreferrer' } : {})}
                           >
-                            {link.label}
+                            {provider === 'ics' ? 'Download calendar file' : 'Open Google event'}
                           </a>
+                        ) : artifact ? (
+                          <span key={provider}>Added to Google Calendar</span>
                         ) : (
                           <Button
                             key={provider}
@@ -313,8 +326,8 @@ export function LunchLotteryPanel({
               ))}
               {run.unmatchedUserIds.length ? (
                 <p className="text-xs">
-                  Unmatched: {run.unmatchedUserIds.map(memberName).join(', ')}. Add or widen lunch availability for a
-                  future draw.
+                  Unmatched: {run.unmatchedUserIds.map(memberName).join(', ')}. No lunch assigned in this draw.
+                  Availability, notice preferences, existing bookings, or group size may affect results.
                 </p>
               ) : null}
             </div>

@@ -4,6 +4,8 @@ LotteryLunch helps colleagues organize lunch groups, opt into lunch draws, and f
 
 To organize a lunch: create/join a group, save lunch availability in Settings, choose Join lottery on the group page, then have an owner/admin run a draw for a future window. Results appear on that page. Weekly templates follow the profile timezone; existing app bookings are respected across groups. There is no background scheduler or automatic invitation/reminder delivery. Outlook, Apple, ICS subscription feeds, and outgoing webhooks are unavailable.
 
+Notice preferences affect every draw: Advance notice only requires 24 hours, Same-day OK requires one hour (also the default), and Last-minute OK allows any future time. Weekly availability may span at most seven days. Draws prioritize members with fewer usable times and compare bounded alternatives; unusually complex requests are rejected with advice to shorten the window or simplify availability. Calendar actions are reusable per lunch and account, and ICS exports have stable lunch identities. Saved draws cannot currently be canceled or rescheduled; organizers should check the dates before running a draw.
+
 ## Development
 
 Use Node.js 24 LTS (`nvm use`) and npm. Node.js 26 is also supported and checked in CI. Docker Compose supplies PostgreSQL 18 and an isolated Node.js 24 development container.
@@ -65,6 +67,8 @@ Normal legacy upgrade starts after migrations through `20260206194000`. A popula
 The new lunch workflow migration adds `Membership.participating` (existing members start opted out), `LunchRun`, and match scheduling fields. It leaves old unmanaged `LotteryRun` tables and `Match.runId` intact. Review any such retained legacy objects before further schema cleanup.
 
 The owner repair migration restores active owner memberships from `Group.ownerId`, including memberships overwritten by the former invitation bug, and removes stray ownership roles from other users. Existing valid memberships are preserved. Review these repairs on your restored backup before deploying.
+
+The calendar artifact migration adds per-user action ownership and uniqueness. It preserves all existing artifacts and reuses the earliest Google artifact whose creator can be identified from its calendar connection. Legacy ICS artifacts and duplicate historical actions remain accessible under the existing authorization rules. Existing duplicate events in external calendars are not removed automatically. Group deletion cleans the group's retained legacy lottery hierarchy transactionally without dropping those tables.
 
 For new schema changes, edit `prisma/schema.prisma`, run `npm run prisma:migrate -- --name descriptive_name`, review the SQL, and commit the migration. `npm run prisma:reset` deletes data and is for disposable development databases only.
 

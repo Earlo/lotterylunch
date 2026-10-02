@@ -46,7 +46,9 @@ availability and `recurringRule` for one-off slots. Weekly rules have exactly
 `FREQ=WEEKLY;BYDAY=SU|MO|TU|WE|TH|FR|SA`, optionally followed by
 `;X-LL-DISABLED=1`. `X-LL-DAY-OFF=1` suppresses the corresponding weekly slot on
 that date, matching times, type, and group. Other recurrence rules are rejected.
-Weekly wall-clock times use the user's profile timezone.
+Weekly wall-clock times use the user's profile timezone. Recurring slots, including
+disabled templates and day-off overrides, must last no more than seven days.
+Invalid or overlong historical weekly templates are ignored by draws.
 
 ## Groups and memberships
 
@@ -73,6 +75,10 @@ Ownership transfer updates the group and roles together; the previous owner
 becomes admin. Suspended users cannot join, accept invites, or delete their
 suspension. An active owner/admin must reinstate them first.
 
+Deletion also removes the group's retained legacy lotteries, runs, participations,
+and their match descendants when those older tables exist. The legacy tables,
+other groups, and ungrouped personal availability are preserved.
+
 ## Participation and lunch draws
 
 | Method | Path                             | Permission and behavior                                               |
@@ -95,12 +101,21 @@ is 15–180 minutes, default 60. At least two active members must opt in; up to 
 participants are supported. Draws combine ungrouped and current-group lunch
 availability, respect weekly templates/overrides, and avoid overlapping persisted
 app bookings across groups. Lunches contain two to defaultGroupSize members.
-Recent pairings are avoided best-effort. Each member
-receives at most one lunch per draw; members without shared availability appear
-in `unmatchedUserIds`.
+The user's shortNoticePreference determines minimum notice from the draw's
+createdAt: strict means 24 hours, standard means one hour, and flexible allows any
+future time. Unset preferences use standard. These are elapsed periods regardless
+of the profile timezone; a shared lunch honors every participant's minimum.
+Matching prioritizes members with less usable availability and compares bounded
+alternative schedules by participation coverage, then repeated pairings. Each
+member receives at most one lunch per draw. Unassigned members appear in
+`unmatchedUserIds`; a globally optimal schedule is not guaranteed. A fixed work
+budget bounds recurrence expansion and matching. Excessively complex draws return
+HTTP 400 with advice to shorten the window or simplify availability.
 
 Runs persist participantIds, unmatchedUserIds, algorithmVersion, requested window,
-and matches with memberIds/scheduledFor/scheduledUntil. Execution and match/event
+and matches with memberIds/scheduledFor/scheduledUntil. GET results include each
+match's calendarArtifacts for the requesting user, with id, type, and optional
+payload.eventLink; other artifact payload fields are omitted. Execution and match/event
 persistence use a transaction. No background scheduler, per-run enrollment window,
 cancellation endpoint, or automatic reminders are provided. Former lottery CRUD
 and `/runs/:runId/**` endpoints are not shipped.
@@ -120,8 +135,13 @@ Artifact body: title, startsAt, endsAt, optional provider (`ics`, default, or go
 timezone, location, meetingUrl, notes. End must follow start. Downloads have no
 public sharing links: leaving/suspension removes access, canceled matches cannot
 export, and group deletion removes artifacts. Previously imported files and Google
-events remain in the recipient's external calendar. Events are created manually
-for the caller; no attendee invitations or reminders are sent automatically.
+events remain in the recipient's external calendar. Each lunch/user/provider action
+reuses its saved artifact; subsequent requests return the original event details.
+Google events use a stable client-supplied ID, so retrying after a failed artifact
+save recovers the existing event. ICS exports use the lunch's stable UID, including
+older artifacts. Saved actions remain visible after reloading the group page.
+Events are created manually for the caller; no attendee invitations or reminders
+are sent automatically.
 Outlook/Apple OAuth and ICS feeds are unavailable; direct
 `POST /calendar/connections` requests are rejected.
 

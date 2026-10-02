@@ -4,6 +4,7 @@ import { createMatches } from '@/lib/server/domain/matching';
 import {
   expandLunchAvailability,
   scheduleLunches,
+  SchedulingCapacityError,
   type LunchParticipant,
 } from '@/lib/server/domain/matching/availability';
 import { zonedDateParts, zonedDay, zonedWallTimeToInstant } from '@/lib/zonedDateTime';
@@ -102,6 +103,168 @@ void test('scheduling requires shared duration and avoids app bookings while lea
   assert.equal(result.matches[0]?.scheduledFor.toISOString(), '2026-10-02T13:00:00.000Z');
   assert.equal(result.matches[0]?.scheduledUntil.toISOString(), '2026-10-02T14:00:00.000Z');
   assert.deepEqual(result.unmatchedUserIds, ['c']);
+});
+
+void test('scheduling prioritizes constrained participants across the whole draw window', () => {
+  const input = {
+    participants: [
+      participant('A', '2026-10-05T12:00:00Z', '2026-10-05T14:00:00Z'),
+      participant('B', '2026-10-05T12:00:00Z', '2026-10-05T14:00:00Z'),
+      participant('C', '2026-10-05T12:00:00Z', '2026-10-05T13:00:00Z'),
+      participant('D', '2026-10-05T13:00:00Z', '2026-10-05T14:00:00Z'),
+    ],
+    windowStart: new Date('2026-10-05T12:00:00Z'),
+    windowEnd: new Date('2026-10-05T14:00:00Z'),
+    durationMinutes: 60,
+    maxGroupSize: 2,
+    recentMatches: [],
+    existingBookings: [],
+    seed: '5',
+  };
+  const result = scheduleLunches(input);
+  assert.deepEqual(scheduleLunches(input), result);
+  assert.deepEqual(result.unmatchedUserIds, []);
+  assert.deepEqual(
+    result.matches.map((match) => match.scheduledFor.toISOString()),
+    ['2026-10-05T12:00:00.000Z', '2026-10-05T13:00:00.000Z'],
+  );
+  assert.ok(result.matches[0]?.memberIds.includes('C'));
+  assert.ok(result.matches[1]?.memberIds.includes('D'));
+  assert.equal(new Set(result.matches.flatMap((match) => match.memberIds)).size, 4);
+});
+
+void test('notice thresholds inside continuous availability create valid later starts', () => {
+  const a = participant('a', '2026-10-05T12:00:00Z', '2026-10-05T15:00:00Z');
+  a.notBefore = new Date('2026-10-05T13:15:00Z');
+  const result = scheduleLunches({
+    participants: [a, participant('b', '2026-10-05T12:00:00Z', '2026-10-05T15:00:00Z')],
+    windowStart: new Date('2026-10-05T12:00:00Z'),
+    windowEnd: new Date('2026-10-05T15:00:00Z'),
+    durationMinutes: 60,
+    maxGroupSize: 2,
+    recentMatches: [],
+    existingBookings: [],
+    seed: 'notice',
+  });
+  assert.deepEqual(result.unmatchedUserIds, []);
+  assert.equal(result.matches[0]?.scheduledFor.toISOString(), '2026-10-05T13:15:00.000Z');
+});
+
+void test('remaining members join larger groups without scheduling through a booking', () => {
+  const input = {
+    participants: ['a', 'b', 'c'].map((id) => participant(id, '2026-10-05T12:00:00Z', '2026-10-05T15:00:00Z')),
+    windowStart: new Date('2026-10-05T12:00:00Z'),
+    windowEnd: new Date('2026-10-05T15:00:00Z'),
+    durationMinutes: 60,
+    maxGroupSize: 3,
+    recentMatches: [],
+    existingBookings: [
+      { memberIds: ['a'], start: new Date('2026-10-05T12:00:00Z'), end: new Date('2026-10-05T13:00:00Z') },
+    ],
+    seed: 'three',
+  };
+  const result = scheduleLunches(input);
+  assert.deepEqual(result.unmatchedUserIds, []);
+  assert.deepEqual(new Set(result.matches[0]?.memberIds), new Set(['a', 'b', 'c']));
+  assert.equal(result.matches[0]?.scheduledFor.toISOString(), '2026-10-05T13:00:00.000Z');
+});
+
+void test('legacy corrupt recurrences are skipped without expanding their unbounded spans', () => {
+  const user = participant('a', '2026-10-05T12:00:00Z', '9999-10-05T13:00:00Z');
+  user.slots[0]!.recurringRule = 'FREQ=WEEKLY;BYDAY=MO';
+  user.slots.push({
+    startAt: new Date('2026-10-05T12:00:00Z'),
+    endAt: new Date('2026-10-05T13:00:00Z'),
+    recurringRule: 'FREQ=WEEKLY;BYDAY=MO',
+    type: 'lunch',
+  });
+  assert.deepEqual(expandLunchAvailability(user, new Date('2026-10-05T00:00:00Z'), new Date('2026-10-12T00:00:00Z')), [
+    { start: Date.parse('2026-10-05T12:00:00Z'), end: Date.parse('2026-10-05T13:00:00Z') },
+  ]);
+});
+
+void test('recurrence expansion rejects oversized legacy arrays and windows before processing them', () => {
+  const user = participant('a', '2026-10-05T12:00:00Z', '2026-10-05T13:00:00Z');
+  user.slots = Array.from({ length: 1001 }, () => user.slots[0]!);
+  assert.throws(
+    () => expandLunchAvailability(user, new Date('2026-10-05T00:00:00Z'), new Date('2026-10-12T00:00:00Z')),
+    SchedulingCapacityError,
+  );
+  user.slots = [];
+  assert.throws(
+    () => expandLunchAvailability(user, new Date('2026-10-05T00:00:00Z'), new Date('9999-10-12T00:00:00Z')),
+    SchedulingCapacityError,
+  );
+});
+
+void test('aggregate conversion work is bounded for individually valid weekly templates', () => {
+  const input = {
+    participants: Array.from({ length: 3 }, (_, index) => ({
+      id: `person-${index}`,
+      timezone: 'UTC',
+      slots: Array.from({ length: 1000 }, (_slot, slot) => ({
+        startAt: new Date(Date.parse('2026-10-05T12:00:00Z') + (index * 1000 + slot) * 1000),
+        endAt: new Date(Date.parse('2026-10-05T13:00:00Z') + (index * 1000 + slot) * 1000),
+        recurringRule: 'FREQ=WEEKLY;BYDAY=MO',
+        type: 'lunch',
+      })),
+    })),
+    windowStart: new Date('2026-10-05T00:00:00Z'),
+    windowEnd: new Date('2026-11-05T00:00:00Z'),
+    durationMinutes: 60,
+    maxGroupSize: 2,
+    recentMatches: [],
+    existingBookings: [],
+    seed: 'bounded',
+  };
+  assert.throws(() => scheduleLunches(input), SchedulingCapacityError);
+});
+
+void test('largest supported participant and slot counts reuse equivalent recurrence computations', () => {
+  const slots = Array.from({ length: 1000 }, () => ({
+    startAt: new Date('2026-10-05T12:00:00Z'),
+    endAt: new Date('2026-10-05T13:00:00Z'),
+    recurringRule: 'FREQ=WEEKLY;BYDAY=MO',
+    type: 'lunch',
+  }));
+  const result = scheduleLunches({
+    participants: Array.from({ length: 500 }, (_, index) => ({ id: `member-${index}`, timezone: 'UTC', slots })),
+    windowStart: new Date('2026-10-05T00:00:00Z'),
+    windowEnd: new Date('2026-11-05T00:00:00Z'),
+    durationMinutes: 60,
+    maxGroupSize: 2,
+    recentMatches: [],
+    existingBookings: [],
+    seed: 'largest',
+  });
+  assert.deepEqual(result.unmatchedUserIds, []);
+  assert.equal(result.matches.length, 250);
+  assert.equal(new Set(result.matches.flatMap((match) => match.memberIds)).size, 500);
+});
+
+void test('whole-window scheduling accounts for every member across group-size limits', () => {
+  for (const count of [2, 3, 4, 5, 8, 9, 20, 21]) {
+    for (const maxGroupSize of [2, 3, 8]) {
+      const participants = Array.from({ length: count }, (_, index) =>
+        participant(`member-${index}`, '2026-10-05T12:00:00Z', '2026-10-05T14:00:00Z'),
+      );
+      const result = scheduleLunches({
+        participants,
+        windowStart: new Date('2026-10-05T12:00:00Z'),
+        windowEnd: new Date('2026-10-05T14:00:00Z'),
+        durationMinutes: 60,
+        maxGroupSize,
+        recentMatches: [],
+        existingBookings: [],
+        seed: 'membership',
+      });
+      const accounted = [...result.matches.flatMap((match) => match.memberIds), ...result.unmatchedUserIds];
+      assert.equal(new Set(accounted).size, count);
+      assert.equal(accounted.length, count);
+      assert.equal(result.unmatchedUserIds.length, maxGroupSize === 2 ? count % 2 : 0);
+      assert.ok(result.matches.every((match) => match.memberIds.length >= 2 && match.memberIds.length <= maxGroupSize));
+    }
+  }
 });
 
 void test('weekly lunch expansion follows profile timezone across daylight saving changes', () => {

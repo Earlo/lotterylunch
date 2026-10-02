@@ -22,6 +22,15 @@ void test('availability recurrence accepts only executable weekly templates and 
   }
 });
 
+void test('recurring availability has a bounded duration while ordinary dated slots can span longer', () => {
+  const weekly = { ...slot, recurringRule: 'FREQ=WEEKLY;BYDAY=FR' };
+  assert.equal(upsertAvailabilitySchema.safeParse([{ ...weekly, endAt: '2026-10-09T12:00:00.000Z' }]).success, true);
+  for (const endAt of ['2026-10-09T12:00:00.001Z', '9999-10-05T13:00:00.000Z']) {
+    assert.equal(upsertAvailabilitySchema.safeParse([{ ...weekly, endAt }]).success, false);
+  }
+  assert.equal(upsertAvailabilitySchema.safeParse([{ ...slot, endAt: '2026-11-02T13:00:00.000Z' }]).success, true);
+});
+
 void test('profiles can clear optional fields and reject unusable timezones', () => {
   assert.deepEqual(updateUserProfileSchema.parse({ name: null, area: null, image: null }), {
     name: null,
